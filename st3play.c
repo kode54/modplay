@@ -129,6 +129,7 @@ typedef struct
     int8_t loopEnabled;
     int8_t sixteenBit;
     int8_t stereo;
+    int8_t adpcm;
     int8_t mixing;
     int8_t interpolating;
     int8_t oversampleCount;
@@ -136,6 +137,10 @@ typedef struct
     int32_t sampleLoopEnd;
     int32_t samplePosition;
     int32_t sampleLoopLength;
+    
+    int32_t lastSamplePosition;
+    int8_t lastDelta;
+    int8_t loopStartDelta;
 
     float incRate;
     float volume;
@@ -229,11 +234,13 @@ static const int8_t retrigvoladd[32] =
     0,  0,  0,  0,  0,  0, 24, 32
 };
 
+#if 0
 static const uint16_t xfinetune_amiga[16] =
 {
     8363, 8413, 8463, 8529, 8581, 8651, 8723, 8757,
     7895, 7941, 7985, 8046, 8107, 8169, 8232, 8280
 };
+#endif
 
 static const uint16_t notespd[12] =
 {
@@ -286,12 +293,10 @@ static const int16_t vibramp[64] =
 static void setSamplesPerFrame(PLAYER *, uint32_t val);
 static void setSamplingInterpolation(PLAYER *, int8_t value);
 static void setStereoMode(PLAYER *, int8_t value);
-static int8_t getStereoFlag(PLAYER *);
 static void setMasterVolume(PLAYER *, uint8_t value);
-static uint8_t getMasterVol(PLAYER *);
 static void voiceSetSource(PLAYER *, uint8_t voiceNumber, const int8_t *sampleData,
     int32_t sampleLength, int32_t sampleLoopLength, int32_t sampleLoopEnd,
-    int8_t loopEnabled, int8_t sixteenbit, int8_t stereo);
+    int8_t loopEnabled, int8_t sixteenbit, int8_t stereo, int8_t adpcm);
 static void voiceSetSamplePosition(PLAYER *, uint8_t voiceNumber, uint16_t value);
 static void voiceSetVolume(PLAYER *, uint8_t voiceNumber, float volume);
 static void voiceSetSurround(PLAYER *, uint8_t voiceNumber, int8_t surround);
@@ -453,6 +458,8 @@ void * st3play_Alloc(uint32_t outputFreq, int8_t interpolation)
     if ( !p )
         return 0;
 
+    lanczos_init();
+    
     for (i = 0; i < 64; ++i)
     {
         p->resampler[i] = lanczos_resampler_create();
@@ -866,7 +873,7 @@ static inline void doamiga(PLAYER *p, uint8_t ch)
 
                     voiceSetSource(p, ch, (const int8_t *)(&p->mseg[insoffs]), inslen,
                         insrepend - insrepbeg, insrepend, loop,
-                        insdat[0x1F] & 4, insdat[0x1F] & 2);
+                        insdat[0x1F] & 4, insdat[0x1F] & 2, insdat[0x1E] == 4);
                 }
                 else
                 {
@@ -904,7 +911,7 @@ static inline void doamiga(PLAYER *p, uint8_t ch)
             setvol(p, ch);
 
             // shutdown channel
-            voiceSetSource(p, ch, NULL, 0, 0, 0, 0, 0, 0);
+            voiceSetSource(p, ch, NULL, 0, 0, 0, 0, 0, 0, 0);
             voiceSetSamplePosition(p, ch, 0);
         }
         else
@@ -1264,6 +1271,9 @@ static void loadheaderparms(PLAYER *p)
             if (insoff && (insdat[0] == 1))
             {
                 inslen = get_le32(&insdat[0x10]);
+                
+                if (insdat[0x1E] == 4) // modplug packed
+                    continue;
 
                 if (insdat[0x1F] & 2) inslen <<= 1; // stereo
 
@@ -1284,7 +1294,7 @@ static void loadheaderparms(PLAYER *p)
     }
 }
 
-void st3play_PlaySong(void *_p)
+void st3play_PlaySong(void *_p, int16_t startOrder)
 {
     PLAYER * p = (PLAYER *)_p;
     uint8_t i;
@@ -1297,7 +1307,7 @@ void st3play_PlaySong(void *_p)
 
     loadheaderparms(p);
 
-    p->np_ord = 0;
+    p->np_ord = startOrder;
     neworder(p);
     p->x_np_ord = p->np_ord;
 
@@ -1321,8 +1331,8 @@ void st3play_PlaySong(void *_p)
     p->isMixing = 1;
     
     p->loopCount = 0;
-    p->playedOrder[0] = 1;
-    memset(p->playedOrder + 1, 0, sizeof(p->playedOrder) - 1);
+    memset(p->playedOrder, 0, sizeof(p->playedOrder));
+    p->playedOrder[startOrder / 8] = 1 << (startOrder % 8);
 }
 
 int8_t st3play_LoadModule(void *_p, const uint8_t *module, size_t size)
@@ -1361,7 +1371,7 @@ int8_t st3play_LoadModule(void *_p, const uint8_t *module, size_t size)
 
     memcpy(p->mseg, module, size);
 
-    p->mseg_len = size;
+    p->mseg_len = (uint32_t) size;
 
     p->instrumentadd    = 0x60          +  p->mseg[0x20];
     p->patternadd       = p->instrumentadd + (p->mseg[0x22] << 1);
@@ -2483,20 +2493,31 @@ void setStereoMode(PLAYER *p, int8_t value)
 void setMasterVolume(PLAYER *p, uint8_t value)
 {
     p->mastervol = value;
-    p->f_masterVolume = (float)(value) * 256.0f / 127.0f;
+    p->f_masterVolume = (float)(value) / 127.0f;
 }
 
 void voiceSetSource(PLAYER *p, uint8_t voiceNumber, const int8_t *sampleData,
     int32_t sampleLength, int32_t sampleLoopLength, int32_t sampleLoopEnd,
-    int8_t loopEnabled, int8_t sixteenbit, int8_t stereo)
+    int8_t loopEnabled, int8_t sixteenbit, int8_t stereo, int8_t adpcm)
 {
     p->voice[voiceNumber].sampleData       = sampleData;
     p->voice[voiceNumber].sampleLength     = sampleLength;
     p->voice[voiceNumber].sampleLoopEnd    = sampleLoopEnd;
     p->voice[voiceNumber].sampleLoopLength = sampleLoopLength;
     p->voice[voiceNumber].loopEnabled      = loopEnabled;
-    p->voice[voiceNumber].sixteenBit       = sixteenbit;
-    p->voice[voiceNumber].stereo           = stereo;
+    if (adpcm)
+    {
+        p->voice[voiceNumber].sixteenBit   = 0;
+        p->voice[voiceNumber].stereo       = 0;
+        p->voice[voiceNumber].lastDelta    = 0;
+        p->voice[voiceNumber].lastSamplePosition = 0;
+    }
+    else
+    {
+        p->voice[voiceNumber].sixteenBit   = sixteenbit;
+        p->voice[voiceNumber].stereo       = stereo;
+    }
+    p->voice[voiceNumber].adpcm            = adpcm;
     p->voice[voiceNumber].mixing           = 1;
     p->voice[voiceNumber].interpolating    = 1;
     p->voice[voiceNumber].oversampleCount  = 0;
@@ -2563,7 +2584,7 @@ void voiceSetSamplingFrequency(PLAYER *p, uint8_t voiceNumber, float samplingFre
     p->voice[voiceNumber].incRate = samplingFrequency / p->f_outputFreq;
 }
 
-inline void mix8b(PLAYER *p, uint8_t ch, uint32_t samples)
+static inline void mix8b(PLAYER *p, uint8_t ch, uint32_t samples)
 {
     const int8_t *sampleData;
     int8_t loopEnabled;
@@ -2608,7 +2629,7 @@ inline void mix8b(PLAYER *p, uint8_t ch, uint32_t samples)
             for (i = oversampleCount; i < samplingInterpolation && lanczos_resampler_get_free_count(resampler); ++i)
                 lanczos_resampler_write_sample(resampler, sampleData[samplePosition] * 256);
             
-            if (oversampleCount < samplingInterpolation)
+            if (i < samplingInterpolation)
                 break;
 
             samplePosition++;
@@ -2649,7 +2670,7 @@ inline void mix8b(PLAYER *p, uint8_t ch, uint32_t samples)
     }
 }
 
-inline void mix8bstereo(PLAYER *p, uint8_t ch, uint32_t samples)
+static inline void mix8bstereo(PLAYER *p, uint8_t ch, uint32_t samples)
 {
     const int8_t *sampleData;
     int8_t loopEnabled;
@@ -2744,7 +2765,7 @@ inline void mix8bstereo(PLAYER *p, uint8_t ch, uint32_t samples)
     }
 }
 
-inline void mix16b(PLAYER *p, uint8_t ch, uint32_t samples)
+static inline void mix16b(PLAYER *p, uint8_t ch, uint32_t samples)
 {
     const int16_t *sampleData;
     int8_t loopEnabled;
@@ -2789,7 +2810,7 @@ inline void mix16b(PLAYER *p, uint8_t ch, uint32_t samples)
             for (i = oversampleCount; i < samplingInterpolation && lanczos_resampler_get_free_count(resampler); ++i)
                 lanczos_resampler_write_sample(resampler, get_le16(&sampleData[samplePosition]));
             
-            if (oversampleCount < samplingInterpolation)
+            if (i < samplingInterpolation)
                 break;
             
             samplePosition++;
@@ -2830,7 +2851,7 @@ inline void mix16b(PLAYER *p, uint8_t ch, uint32_t samples)
     }
 }
 
-inline void mix16bstereo(PLAYER *p, uint8_t ch, uint32_t samples)
+static inline void mix16bstereo(PLAYER *p, uint8_t ch, uint32_t samples)
 {
     const int16_t *sampleData;
     int8_t loopEnabled;
@@ -2925,6 +2946,124 @@ inline void mix16bstereo(PLAYER *p, uint8_t ch, uint32_t samples)
     }
 }
 
+static inline int8_t get_adpcm_sample(const int8_t *sampleDictionary, const uint8_t *sampleData, int32_t samplePosition, int8_t *lastDelta)
+{
+    uint8_t byte = sampleData[samplePosition / 2];
+    byte = (samplePosition & 1) ? byte >> 4 : byte & 15;
+    return *lastDelta += sampleDictionary[byte];
+}
+
+static inline void mixadpcm(PLAYER *p, uint8_t ch, uint32_t samples)
+{
+    const int8_t *sampleDictionary;
+    const uint8_t *sampleData;
+    int8_t loopEnabled;
+    int32_t sampleLength;
+    int32_t sampleLoopEnd;
+    int32_t sampleLoopLength;
+    int32_t samplePosition;
+    int32_t samplingInterpolation;
+    int8_t lastDelta;
+    int32_t interpolating;
+    int32_t oversampleCount;
+    int32_t i;
+    uint32_t j;
+    float volume;
+    float sample;
+    float panningL;
+    float panningR;
+    void *resampler;
+    
+    sampleLength     = p->voice[ch].sampleLength;
+    sampleLoopLength = p->voice[ch].sampleLoopLength;
+    sampleLoopEnd    = p->voice[ch].sampleLoopEnd;
+    loopEnabled      = p->voice[ch].loopEnabled;
+    volume           = p->voice[ch].volume;
+    panningL         = p->voice[ch].panningL;
+    panningR         = p->voice[ch].panningR;
+    interpolating    = p->voice[ch].interpolating;
+    oversampleCount  = p->voice[ch].oversampleCount;
+    lastDelta        = p->voice[ch].lastDelta;
+    
+    sampleDictionary = p->voice[ch].sampleData;
+    sampleData = (uint8_t*)sampleDictionary + 16;
+    samplingInterpolation = p->samplingInterpolation ? 1 : 32;
+    
+    while (p->voice[ch].lastSamplePosition < p->voice[ch].samplePosition)
+    {
+        get_adpcm_sample(sampleDictionary, sampleData, p->voice[ch].lastSamplePosition, &lastDelta);
+        p->voice[ch].lastSamplePosition++;
+        if (p->voice[ch].lastSamplePosition == sampleLoopEnd - sampleLoopLength)
+            p->voice[ch].loopStartDelta = lastDelta;
+    }
+    
+    resampler = p->resampler[ch];
+    
+    lanczos_resampler_set_rate( resampler, p->voice[ch].incRate * (float)samplingInterpolation );
+    
+    for (j = 0; (j < samples) && sampleData; ++j)
+    {
+        samplePosition = p->voice[ch].samplePosition;
+        
+        while (interpolating && lanczos_resampler_get_free_count(resampler))
+        {
+            int8_t nextDelta = lastDelta;
+            int16_t sample = get_adpcm_sample(sampleDictionary, sampleData, samplePosition, &nextDelta) * 256;
+            
+            for (i = oversampleCount; i < samplingInterpolation && lanczos_resampler_get_free_count(resampler); ++i)
+                lanczos_resampler_write_sample(resampler, sample);
+            
+            if (i < samplingInterpolation)
+                break;
+            
+            lastDelta = nextDelta;
+            
+            samplePosition++;
+            oversampleCount = 0;
+            
+            if (loopEnabled)
+            {
+                if (samplePosition == sampleLoopEnd - sampleLoopLength)
+                    p->voice[ch].loopStartDelta = lastDelta;
+                
+                if (samplePosition >= sampleLoopEnd)
+                {
+                    samplePosition -= sampleLoopLength;
+                    lastDelta = p->voice[ch].loopStartDelta;
+                }
+            }
+            else
+            {
+                if (samplePosition >= sampleLength)
+                {
+                    samplePosition = 0;
+                    interpolating = 0;
+                }
+            }
+        }
+        
+        p->voice[ch].samplePosition  = samplePosition;
+        p->voice[ch].lastSamplePosition = samplePosition;
+        p->voice[ch].interpolating   = interpolating;
+        p->voice[ch].oversampleCount = oversampleCount;
+        p->voice[ch].lastDelta       = lastDelta;
+        
+        if ( !lanczos_resampler_ready(resampler) )
+        {
+            p->voice[ch].mixing = 0;
+            break;
+        }
+        
+        sample = lanczos_resampler_get_sample(resampler);
+        lanczos_resampler_remove_sample(resampler);
+        
+        sample *= volume;
+        
+        p->masterBufferL[j] += (sample * panningL);
+        p->masterBufferR[j] += (sample * panningR);
+    }
+}
+
 void mixSampleBlock(PLAYER *p, int32_t *outputStream, uint32_t sampleBlockLength)
 {
     int32_t *streamPointer;
@@ -2954,6 +3093,8 @@ void mixSampleBlock(PLAYER *p, int32_t *outputStream, uint32_t sampleBlockLength
             {
                 if (p->voice[i].sixteenBit)
                     mix16b(p, i, sampleBlockLength);
+                else if (p->voice[i].adpcm)
+                    mixadpcm(p, i, sampleBlockLength);
                 else
                     mix8b(p, i, sampleBlockLength);
             }
@@ -2992,9 +3133,13 @@ void st3play_RenderFixed(void *_p, int32_t *buffer, int32_t count)
                 samplesTodo = (count < p->samplesLeft) ? count : p->samplesLeft;
                 samplesTodo = (samplesTodo < p->soundBufferSize) ? samplesTodo : p->soundBufferSize;
 
-                mixSampleBlock(p, outputStream, samplesTodo);
+                if (outputStream)
+                {
+                    mixSampleBlock(p, outputStream, samplesTodo);
 
-                outputStream   += (samplesTodo << 1);
+                    outputStream   += (samplesTodo << 1);
+                }
+                
                 p->samplesLeft -= samplesTodo;
                 count -= samplesTodo;
             }

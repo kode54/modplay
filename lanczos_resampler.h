@@ -13,7 +13,7 @@ void lanczos_resampler_set_rate( void *, double new_factor );
 int lanczos_resampler_ready(void *);
 void lanczos_resampler_clear(void *);
 int lanczos_resampler_get_sample_count(void *);
-int lanczos_resampler_get_sample(void *);
+float lanczos_resampler_get_sample(void *);
 void lanczos_resampler_remove_sample(void *);
 
 #endif

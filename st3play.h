@@ -11,7 +11,7 @@ void * st3play_Alloc(uint32_t outputFreq, int8_t interpolation);
 void st3play_Free(void *);
 
 int8_t st3play_LoadModule(void *, const uint8_t *module, size_t size);
-void st3play_PlaySong(void *);
+void st3play_PlaySong(void *, int16_t startOrder);
     
 int32_t st3play_GetLoopCount(void *);
 
