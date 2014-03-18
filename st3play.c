@@ -207,6 +207,9 @@ typedef struct
     int8_t stereomode;
     uint8_t mastervol;
     uint32_t mseg_len;
+    
+    uint32_t loopCount;
+    uint8_t playedOrder[8192];
 } PLAYER;
 
 typedef void (*effect_routine)(PLAYER *, chn_t *ch);
@@ -1110,6 +1113,8 @@ static inline void docmd2(PLAYER *p)
 
 void dorow(PLAYER *p) // periodically called from mixer
 {
+    int32_t offset, bit;
+    
     p->patmusicrand = (uint16_t)(((uint32_t)(p->patmusicrand) * 0xCDEF) >> 16) + 0x1727;
 
     if (!p->musiccount)
@@ -1157,10 +1162,22 @@ void dorow(PLAYER *p) // periodically called from mixer
             p->np_row = neworder(p); // if breakpat, np_row = break row
         }
 
-        // x_ used for GUI texts
+        // x_ used for info retrieval
         p->x_np_ord = p->np_ord;
         p->x_np_row = p->np_row;
         p->x_np_pat = p->np_pat;
+        
+        if (p->np_row == 0)
+        {
+            offset = (p->np_ord - 1) / 8;
+            bit = 1 << ((p->np_ord - 1) % 8);
+            if (p->playedOrder[offset] & bit)
+            {
+                p->loopCount++;
+                memset(p->playedOrder, 0, sizeof(p->playedOrder));
+            }
+            p->playedOrder[offset] |= bit;
+        }
 
         p->musiccount = 0;
     }
@@ -1302,6 +1319,10 @@ void st3play_PlaySong(void *_p)
     p->Playing = 1;
     setSamplesPerFrame(p, ((p->outputFreq * 5UL) / 2 / p->tempo));
     p->isMixing = 1;
+    
+    p->loopCount = 0;
+    p->playedOrder[0] = 1;
+    memset(p->playedOrder + 1, 0, sizeof(p->playedOrder) - 1);
 }
 
 int8_t st3play_LoadModule(void *_p, const uint8_t *module, size_t size)
@@ -1476,6 +1497,12 @@ static void s_patloop(PLAYER *p, chn_t *ch)
         p->patloopcount--;
         p->jumptorow = p->patloopstart;
         p->np_patoff = -1; // force reseek
+        if (p->patloopstart == 0)
+        {
+            int32_t offset = (p->np_ord - 1) / 8;
+            int32_t bit = 1 << ((p->np_ord - 1) % 8);
+            p->playedOrder[offset] &= ~bit;
+        }
     }
     else
     {
@@ -3021,6 +3048,31 @@ void FreeSong(PLAYER *p)
     }
 
     p->ModuleLoaded = 0;
+}
+
+int32_t st3play_GetLoopCount(void *_p)
+{
+    PLAYER * p = (PLAYER *)_p;
+    return p->loopCount;
+}
+
+void st3play_GetInfo(void *_p, st3_info *info)
+{
+    int32_t i, channels_playing;
+    PLAYER * p = (PLAYER *)_p;
+    info->order = p->x_np_ord - 1;
+    info->pattern = p->x_np_pat;
+    info->row = p->x_np_row;
+    channels_playing = 0;
+    if (p->isMixing)
+    {
+        for (i = 0; i < 32; ++i)
+        {
+            if (p->voice[i].mixing)
+                ++channels_playing;
+        }
+    }
+    info->channels_playing = channels_playing;
 }
 
 // EOF
