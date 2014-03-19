@@ -1,4 +1,4 @@
-/*
+﻿/*
 ** ST3PLAY v0.43a
 ** ==============
 **
@@ -537,7 +537,7 @@ static inline uint32_t get_le32(const void *_p)
 
 static inline void getlastnfo(PLAYER *p, chn_t *ch)
 {
-	(void)p;
+    (void)p;
     if (!ch->info)
         ch->info = ch->alastnfo;
 }
@@ -837,6 +837,7 @@ static inline void doamiga(PLAYER *p, uint8_t ch)
     uint32_t inslen;
     uint32_t insrepbeg;
     uint32_t insrepend;
+    int8_t shift;
 
     if (p->chn[ch].ins)
     {
@@ -861,7 +862,18 @@ static inline void doamiga(PLAYER *p, uint8_t ch)
 
                     insoffs = (uint32_t)(((uint32_t)(insdat[0x0D])<<16)|((uint16_t)(insdat[0x0F])<<8)|insdat[0x0E])<<4;
 
+                    if (insoffs > p->mseg_len)
+                        insoffs = p->mseg_len;
+
                     inslen    = get_le32(&insdat[0x10]);
+
+                    shift = 0;
+                    if (insdat[0x1F] & 2) shift++;
+                    if (insdat[0x1F] & 4) shift++;
+
+                    if (insoffs + (inslen << shift) > p->mseg_len)
+                        inslen = (p->mseg_len - insoffs) >> shift;
+
                     insrepbeg = get_le32(&insdat[0x14]);
                     insrepend = get_le32(&insdat[0x18]);
 
@@ -1271,6 +1283,9 @@ static void loadheaderparms(PLAYER *p)
 
             if (insoff && (insdat[0] == 1))
             {
+                if (insoff > p->mseg_len)
+                    insoff = p->mseg_len;
+
                 inslen = get_le32(&insdat[0x10]);
                 
                 if (insdat[0x1E] == 4) // modplug packed
@@ -1281,12 +1296,16 @@ static void loadheaderparms(PLAYER *p)
                 if (insdat[0x1F] & 4)
                 {
                     // 16-bit
+                    if (insoff + inslen * 2 > p->mseg_len)
+                        inslen = (p->mseg_len - insoff) / 2;
                     for (j = 0; j < inslen; ++j)
                         set_le16(&p->mseg[insoff + (j << 1)], get_le16(&p->mseg[insoff + (j << 1)]) - 0x8000);
                 }
                 else
                 {
                     // 8-bit
+                    if (insoff + inslen > p->mseg_len)
+                        inslen = p->mseg_len - insoff;
                     for (j = 0; j < inslen; ++j)
                         p->mseg[insoff + j] = p->mseg[insoff + j] - 0x80;
                 }
@@ -3204,8 +3223,8 @@ void st3play_GetInfo(void *_p, st3_info *info)
     info->order = p->x_np_ord - 1;
     info->pattern = p->x_np_pat;
     info->row = p->x_np_row;
-	info->speed = p->musicmax;
-	info->tempo = p->tempo;
+    info->speed = p->musicmax;
+    info->tempo = p->tempo;
     channels_playing = 0;
     if (p->isMixing)
     {
