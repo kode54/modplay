@@ -173,7 +173,7 @@ typedef struct
     chn_t chn[32];
     
     uint8_t mixingVolume;
-    uint32_t soundBufferSize;
+    int32_t soundBufferSize;
     uint32_t outputFreq;
     
     VOICE voice[32];
@@ -453,7 +453,7 @@ void * st3play_Alloc(uint32_t outputFreq, int8_t interpolation)
 {
     int i;
     
-    PLAYER * p = calloc(1, sizeof(PLAYER));
+    PLAYER * p = (PLAYER *) calloc(1, sizeof(PLAYER));
     
     if ( !p )
         return 0;
@@ -525,7 +525,7 @@ static inline uint16_t get_le16(const void *_p)
 static inline void set_le16(void *_p, uint16_t v)
 {
     uint8_t * p = (uint8_t *)_p;
-    p[0] = v;
+    p[0] = (uint8_t)v;
     p[1] = v >> 8;
 }
 
@@ -537,6 +537,7 @@ static inline uint32_t get_le32(const void *_p)
 
 static inline void getlastnfo(PLAYER *p, chn_t *ch)
 {
+	(void)p;
     if (!ch->info)
         ch->info = ch->alastnfo;
 }
@@ -785,7 +786,7 @@ static inline uint8_t getnote(PLAYER *p)
         return (255);
 
     i = p->np_patoff;
-    while (1)
+    for (;;)
     {
         dat = p->mseg[p->np_patseg + i++];
         if (!dat) // end of row
@@ -1000,7 +1001,7 @@ static inline void donotes(PLAYER *p)
 
     seekpat(p);
 
-    while (1)
+    for (;;)
     {
         ch = getnote(p);
         if (ch == 255) break; // end of row/channels
@@ -2651,8 +2652,8 @@ static inline void mix8b(PLAYER *p, uint8_t ch, uint32_t samples)
         }
         
         p->voice[ch].samplePosition  = samplePosition;
-        p->voice[ch].interpolating   = interpolating;
-        p->voice[ch].oversampleCount = oversampleCount;
+        p->voice[ch].interpolating   = (int8_t)interpolating;
+        p->voice[ch].oversampleCount = (int8_t)oversampleCount;
 
         if ( !lanczos_resampler_ready(resampler) )
         {
@@ -2743,8 +2744,8 @@ static inline void mix8bstereo(PLAYER *p, uint8_t ch, uint32_t samples)
         }
         
         p->voice[ch].samplePosition  = samplePosition;
-        p->voice[ch].interpolating   = interpolating;
-        p->voice[ch].oversampleCount = oversampleCount;
+        p->voice[ch].interpolating   = (int8_t)interpolating;
+        p->voice[ch].oversampleCount = (int8_t)oversampleCount;
         
         if ( !lanczos_resampler_ready(resampler[0]) )
         {
@@ -2832,8 +2833,8 @@ static inline void mix16b(PLAYER *p, uint8_t ch, uint32_t samples)
         }
         
         p->voice[ch].samplePosition  = samplePosition;
-        p->voice[ch].interpolating   = interpolating;
-        p->voice[ch].oversampleCount = oversampleCount;
+        p->voice[ch].interpolating   = (int8_t)interpolating;
+        p->voice[ch].oversampleCount = (int8_t)oversampleCount;
         
         if ( !lanczos_resampler_ready(resampler) )
         {
@@ -2924,8 +2925,8 @@ static inline void mix16bstereo(PLAYER *p, uint8_t ch, uint32_t samples)
         }
         
         p->voice[ch].samplePosition  = samplePosition;
-        p->voice[ch].interpolating   = interpolating;
-        p->voice[ch].oversampleCount = oversampleCount;
+        p->voice[ch].interpolating   = (int8_t)interpolating;
+        p->voice[ch].oversampleCount = (int8_t)oversampleCount;
         
         if ( !lanczos_resampler_ready(resampler[0]) )
         {
@@ -3044,8 +3045,8 @@ static inline void mixadpcm(PLAYER *p, uint8_t ch, uint32_t samples)
         
         p->voice[ch].samplePosition  = samplePosition;
         p->voice[ch].lastSamplePosition = samplePosition;
-        p->voice[ch].interpolating   = interpolating;
-        p->voice[ch].oversampleCount = oversampleCount;
+        p->voice[ch].interpolating   = (int8_t)interpolating;
+        p->voice[ch].oversampleCount = (int8_t)oversampleCount;
         p->voice[ch].lastDelta       = lastDelta;
         
         if ( !lanczos_resampler_ready(resampler) )
@@ -3217,7 +3218,7 @@ void st3play_GetInfo(void *_p, st3_info *info)
                 ++channels_playing;
         }
     }
-    info->channels_playing = channels_playing;
+    info->channels_playing = (int8_t)channels_playing;
 }
 
 // EOF

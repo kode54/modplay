@@ -19,9 +19,9 @@
 #define lanczos_resampler_remove_sample EVALUATE(LANCZOS_DECORATE,_lanczos_resampler_remove_sample)
 #endif
 
-void lanczos_init();
+void lanczos_init(void);
 
-void * lanczos_resampler_create();
+void * lanczos_resampler_create(void);
 void lanczos_resampler_delete(void *);
 void * lanczos_resampler_dup(void *);
 
