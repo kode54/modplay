@@ -2596,7 +2596,6 @@ static inline void mix8b(PLAYER *p, uint8_t ch, uint32_t samples)
     int32_t samplingInterpolation;
     int32_t interpolating;
     int32_t oversampleCount;
-    int32_t i;
     uint32_t j;
     float volume;
     float sample;
@@ -2627,10 +2626,10 @@ static inline void mix8b(PLAYER *p, uint8_t ch, uint32_t samples)
 
         while (interpolating && lanczos_resampler_get_free_count(resampler))
         {
-            for (i = oversampleCount; i < samplingInterpolation && lanczos_resampler_get_free_count(resampler); ++i)
+            for (; oversampleCount < samplingInterpolation && lanczos_resampler_get_free_count(resampler); ++oversampleCount)
                 lanczos_resampler_write_sample(resampler, sampleData[samplePosition] * 256);
             
-            if (i < samplingInterpolation)
+            if (oversampleCount < samplingInterpolation)
                 break;
 
             samplePosition++;
@@ -2682,7 +2681,6 @@ static inline void mix8bstereo(PLAYER *p, uint8_t ch, uint32_t samples)
     int32_t samplingInterpolation;
     int32_t interpolating;
     int32_t oversampleCount;
-    int32_t i;
     uint32_t j;
     float volume;
     float sampleL;
@@ -2716,13 +2714,13 @@ static inline void mix8bstereo(PLAYER *p, uint8_t ch, uint32_t samples)
         
         while (interpolating && lanczos_resampler_get_free_count(resampler[0]))
         {
-            for (i = oversampleCount; i < samplingInterpolation && lanczos_resampler_get_free_count(resampler[0]); ++i)
+            for (; oversampleCount < samplingInterpolation && lanczos_resampler_get_free_count(resampler[0]); ++oversampleCount)
             {
                 lanczos_resampler_write_sample(resampler[0], sampleData[samplePosition] * 256);
                 lanczos_resampler_write_sample(resampler[1], sampleData[sampleLength + samplePosition] * 256);
             }
             
-            if (i < samplingInterpolation)
+            if (oversampleCount < samplingInterpolation)
                 break;
             
             samplePosition++;
@@ -2777,7 +2775,6 @@ static inline void mix16b(PLAYER *p, uint8_t ch, uint32_t samples)
     int32_t samplingInterpolation;
     int32_t interpolating;
     int32_t oversampleCount;
-    int32_t i;
     uint32_t j;
     float volume;
     float sample;
@@ -2808,10 +2805,10 @@ static inline void mix16b(PLAYER *p, uint8_t ch, uint32_t samples)
         
         while (interpolating && lanczos_resampler_get_free_count(resampler))
         {
-            for (i = oversampleCount; i < samplingInterpolation && lanczos_resampler_get_free_count(resampler); ++i)
+            for (; oversampleCount < samplingInterpolation && lanczos_resampler_get_free_count(resampler); ++oversampleCount)
                 lanczos_resampler_write_sample(resampler, get_le16(&sampleData[samplePosition]));
             
-            if (i < samplingInterpolation)
+            if (oversampleCount < samplingInterpolation)
                 break;
             
             samplePosition++;
@@ -2863,7 +2860,6 @@ static inline void mix16bstereo(PLAYER *p, uint8_t ch, uint32_t samples)
     int32_t samplingInterpolation;
     int32_t interpolating;
     int32_t oversampleCount;
-    int32_t i;
     uint32_t j;
     float volume;
     float sampleL;
@@ -2897,13 +2893,13 @@ static inline void mix16bstereo(PLAYER *p, uint8_t ch, uint32_t samples)
         
         while (interpolating && lanczos_resampler_get_free_count(resampler[0]))
         {
-            for (i = oversampleCount; i < samplingInterpolation && lanczos_resampler_get_free_count(resampler[0]); ++i)
+            for (; oversampleCount < samplingInterpolation && lanczos_resampler_get_free_count(resampler[0]); ++oversampleCount)
             {
                 lanczos_resampler_write_sample(resampler[0], get_le16(&sampleData[samplePosition]));
                 lanczos_resampler_write_sample(resampler[1], get_le16(&sampleData[sampleLength + samplePosition]));
             }
             
-            if (i < samplingInterpolation)
+            if (oversampleCount < samplingInterpolation)
                 break;
             
             samplePosition++;
@@ -2967,7 +2963,6 @@ static inline void mixadpcm(PLAYER *p, uint8_t ch, uint32_t samples)
     int8_t lastDelta;
     int32_t interpolating;
     int32_t oversampleCount;
-    int32_t i;
     uint32_t j;
     float volume;
     float sample;
@@ -3011,10 +3006,10 @@ static inline void mixadpcm(PLAYER *p, uint8_t ch, uint32_t samples)
             int8_t nextDelta = lastDelta;
             int16_t sample = get_adpcm_sample(sampleDictionary, sampleData, samplePosition, &nextDelta) * 256;
             
-            for (i = oversampleCount; i < samplingInterpolation && lanczos_resampler_get_free_count(resampler); ++i)
+            for (; oversampleCount < samplingInterpolation && lanczos_resampler_get_free_count(resampler); ++oversampleCount)
                 lanczos_resampler_write_sample(resampler, sample);
             
-            if (i < samplingInterpolation)
+            if (oversampleCount < samplingInterpolation)
                 break;
             
             lastDelta = nextDelta;
