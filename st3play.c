@@ -3209,6 +3209,8 @@ void st3play_GetInfo(void *_p, st3_info *info)
     info->order = p->x_np_ord - 1;
     info->pattern = p->x_np_pat;
     info->row = p->x_np_row;
+	info->speed = p->musicmax;
+	info->tempo = p->tempo;
     channels_playing = 0;
     if (p->isMixing)
     {
