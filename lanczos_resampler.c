@@ -17,7 +17,7 @@ static double lanczos_lut[LANCZOS_SAMPLES + 1];
 
 enum { lanczos_buffer_size = LANCZOS_WIDTH * 4 };
 
-int fEqual(const double b, const double a)
+static int fEqual(const double b, const double a)
 {
     return fabs(a - b) < 1.0e-6;
 }
