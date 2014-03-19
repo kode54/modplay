@@ -1,6 +1,6 @@
 ﻿/*
-** ST3PLAY v0.43a
-** ==============
+** ST3PLAY v0.44
+** =============
 **
 ** C port of Scream Tracker 3's replayer, by 8bitbubsy (Olav Sørensen)
 ** using the original asm source codes by PSI (Sami Tammilehto) of Future Crew
@@ -1667,7 +1667,7 @@ static void s_slidedown(PLAYER *p, chn_t *ch)
         {
             if (ch->info <= 0xE0) return; // only fine slides here
 
-            if (ch->info >= 0xF0)
+            if (ch->info <= 0xF0)
             {
                 ch->aspd += (ch->info & 0x0F);
                 if (ch->aspd > 32767) ch->aspd = 32767;
@@ -1701,7 +1701,7 @@ static void s_slideup(PLAYER *p, chn_t *ch)
         {
             if (ch->info <= 0xE0) return; // only fine slides here
 
-            if (ch->info >= 0xF0)
+            if (ch->info <= 0xF0)
             {
                 ch->aspd -= (ch->info & 0x0F);
                 if (ch->aspd < 0) ch->aspd = 0;
