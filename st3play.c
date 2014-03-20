@@ -1342,7 +1342,7 @@ void st3play_PlaySong(void *_p, int16_t startOrder)
                 pan = (dat & 0x0F) << 4;
         }
 
-        if (stereomode)
+        if (p->stereomode)
             p->chn[i].apanpos = pan;
         else
             p->chn[i].apanpos = 7;
@@ -1483,7 +1483,7 @@ static void s_setpanwave(PLAYER *p, chn_t *ch) // NON-ST3
 
 static void s_setpanpos(PLAYER *p, chn_t *ch)
 {
-    if (stereomode)
+    if (p->stereomode)
     {
         ch->apanpos = (ch->info & 0x0F) << 4;
 
