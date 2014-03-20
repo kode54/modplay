@@ -179,7 +179,7 @@ static int lanczos_resampler_run(lanczos_resampler * r, float ** out_, float * o
             }
             for (sample = 0, i = 0; i < LANCZOS_WIDTH * 2; ++i)
                 sample += in[i] * kernel[i];
-            *out++ = (float)(sample / kernel_sum * 256.0);
+            *out++ = (float)(sample / kernel_sum * (1.0 / 32768.0));
 
             phase += phase_inc;
 
