@@ -347,6 +347,7 @@ typedef struct
     
 #ifdef USE_VOL_RAMP
     float f_samplesPerFrame;
+    float f_samplesPerFrameInit;
 #endif
     
     // pre-initialized variables
@@ -383,7 +384,7 @@ static void voiceSetSource(PLAYER *, uint8_t i, const int8_t *sampleData,
                            int32_t sampleLoopEnd, int8_t loopEnabled,
                            int8_t sixteenbit, int8_t stereo);
 static void voiceSetSamplePosition(PLAYER *, uint8_t i, uint16_t value);
-static void voiceSetVolume(PLAYER *, uint8_t i, float vol, uint8_t pan);
+static void voiceSetVolume(PLAYER *, uint8_t i, float vol, uint8_t pan, uint8_t init);
 static void voiceSetSamplingFrequency(PLAYER *, uint8_t i, float samplingFrequency);
 
 
@@ -1974,8 +1975,8 @@ static void MainPlayer(PLAYER *p) // periodically called from mixer
     {
         ch = &p->Stm[i];
         
-        if (ch->Status & IS_Vol)
-            voiceSetVolume(p, ch->Nr, ch->FinalVol, ch->FinalPan);
+        if ((ch->Status & (IS_Vol | IS_NyTon)) == IS_Vol)
+            voiceSetVolume(p, ch->Nr, ch->FinalVol, ch->FinalPan, 0);
         
         if (ch->Status & IS_Period)
             voiceSetSamplingFrequency(p, ch->Nr, (float)(GetFrequenceValue(p, ch->FinalPeriod)));
@@ -1983,7 +1984,8 @@ static void MainPlayer(PLAYER *p) // periodically called from mixer
         if (ch->Status & IS_NyTon)
         {
             p->voice[ch->Nr + 127] = p->voice[ch->Nr];
-            voiceSetVolume(p, ch->Nr + 127, 0, ch->FinalPan);
+            voiceSetVolume(p, ch->Nr, ch->FinalVol, ch->FinalPan, 1);
+            voiceSetVolume(p, ch->Nr + 127, 0, ch->FinalPan, 1);
             lanczos_resampler_dup_inplace(p->resampler[ch->Nr + 127], p->resampler[ch->Nr]);
             lanczos_resampler_dup_inplace(p->resampler[ch->Nr + 127 + 254], p->resampler[ch->Nr + 254]);
             
@@ -2684,13 +2686,19 @@ void voiceSetSamplePosition(PLAYER *p, uint8_t i, uint16_t value)
     lanczos_resampler_clear(p->resampler[i+254]);
 }
 
-void voiceSetVolume(PLAYER *p, uint8_t i, float vol, uint8_t pan)
+void voiceSetVolume(PLAYER *p, uint8_t i, float vol, uint8_t pan, uint8_t init)
 {
 #ifdef USE_VOL_RAMP
+    const float rampRate = init ? p->f_samplesPerFrameInit : p->f_samplesPerFrame;
+    if (init && vol)
+    {
+        p->voice[i].volumeL = 0.0f;
+        p->voice[i].volumeR = 0.0f;
+    }
     p->voice[i].targetVolL = vol * p->PanningTab[256 - pan];
     p->voice[i].targetVolR = vol * p->PanningTab[      pan];
-    p->voice[i].volDeltaL  = (p->voice[i].targetVolL - p->voice[i].volumeL) / p->f_samplesPerFrame;
-    p->voice[i].volDeltaR  = (p->voice[i].targetVolR - p->voice[i].volumeR) / p->f_samplesPerFrame;
+    p->voice[i].volDeltaL  = (p->voice[i].targetVolL - p->voice[i].volumeL) * rampRate;
+    p->voice[i].volDeltaR  = (p->voice[i].targetVolR - p->voice[i].volumeR) * rampRate;
 #else
     p->voice[i].volumeL = vol * p->PanningTab[256 - pan];
     p->voice[i].volumeR = vol * p->PanningTab[      pan];
@@ -3743,7 +3751,8 @@ static void setSamplesPerFrame(PLAYER *p, uint32_t val)
     p->samplesPerFrame   = val;
     
 #ifdef USE_VOL_RAMP
-    p->f_samplesPerFrame = (float)(val) / 4.0f;
+    p->f_samplesPerFrame = 1.0f / ((float)(val) / 4.0f);
+    p->f_samplesPerFrameInit = 1.0f / (p->f_outputFreq / 1000.0f); // 1ms
 #endif
 }
 
