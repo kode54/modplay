@@ -13,9 +13,13 @@ void ft2play_Free(void *);
 int8_t ft2play_LoadModule(void *, const int8_t *buffer, size_t size);
 
 void ft2play_PlaySong(void *, int32_t startOrder);
+
+/* Calling this function with a NULL buffer skips mixing altogether */
+void ft2play_RenderFloat(void *, float *buffer, int32_t count);
     
-void ft2play_RenderFixed(void *, int32_t *buffer, int32_t count);
-void ft2play_Render16(void *, int16_t *buffer, int32_t count);
+/* These two absolutely require a real buffer */
+void ft2play_RenderFixed32(void *, int32_t *buffer, int32_t count, int8_t depth);
+void ft2play_RenderFixed16(void *, int16_t *buffer, int32_t count, int8_t depth);
     
 uint32_t ft2play_GetLoopCount(void *);
 
