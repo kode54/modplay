@@ -1,6 +1,6 @@
 /*
- ** FT2PLAY v0.32a
- ** ==============
+ ** FT2PLAY v0.33
+ ** =============
  **
  ** C port of FastTracker II's replayer, by 8bitbubsy (Olav Sørensen)
  ** using the original pascal+asm source codes by Mr.H (Fredrik Huss) of Triton
@@ -27,6 +27,7 @@
 #include <stdint.h>
 #include <limits.h>
 #include <math.h>
+#include <assert.h>
 
 #include "lanczos_resampler.h"
 
@@ -146,6 +147,8 @@ typedef struct SongTyp_t
     int16_t PattLen;
     uint16_t Speed;
     uint16_t Tempo;
+    uint16_t InitSpeed;
+    uint16_t InitTempo;
     int16_t GlobVol; // must be signed
     uint16_t Timer;
     uint8_t PattDelTime;
@@ -155,8 +158,6 @@ typedef struct SongTyp_t
     uint8_t PosJumpFlag;
     uint8_t SongTab[256];
     uint16_t Ver;
-    uint16_t DefSpeed;
-    uint16_t DefTempo;
     uint16_t startOrder;
 } SongTyp;
 
@@ -969,14 +970,24 @@ CheckEffects:
         }
         else
         {
-            if (ch->Eff == 0) // XXX not faithful, but useful
+            // F00 makes sense for stopping the song in tracker,
+            // but in a replayer let's make the song start over instead.
+            if (ch->Eff == 0)
             {
-                pl->Song.Speed = pl->Song.DefSpeed;
-                pl->Song.Timer = 1;
-                pl->Song.Tempo = pl->Song.DefTempo;
-                i = pl->loopCount + 1;
-                ft2play_PlaySong(pl, pl->Song.startOrder);
-                pl->loopCount = i;
+                memset(pl->voice, 0, sizeof (pl->voice));
+
+                pl->Song.PattPos     = 0;
+                pl->Song.PBreakPos   = 0;
+                pl->Song.PosJumpFlag = 0;
+                pl->Song.SongPos     = pl->Song.startOrder;
+                pl->Song.PattNr      = pl->Song.SongTab[pl->Song.SongPos];
+                pl->Song.PattLen     = pl->PattLens[pl->Song.PattNr];
+                pl->Song.Timer       = 1;
+                pl->Song.Speed       = pl->Song.InitSpeed;
+                pl->Song.Tempo       = pl->Song.InitTempo;
+                pl->Song.GlobVol     = 64;
+
+                pl->loopCount++;
             }
             else
             {
@@ -1368,7 +1379,7 @@ static void FixaEnvelopeVibrato(PLAYER *p, StmTyp *ch)
         else if (ch->InstrSeg.VibTyp == 3) autoVibTmp = (((((autoVibTmp >> 1) & 0x00FF) + 64) & 127) - 64);
         
         ch->FinalPeriod = ((p->VibSineTab[autoVibTmp] * ch->EVibAmp) >> 14) + ch->OutPeriod;
-        if (ch->FinalPeriod >= 32000) ch->FinalPeriod = 0; // Yes, FT2 zeroes it out
+        if (ch->FinalPeriod > (32000 - 1)) ch->FinalPeriod = 0; // Yes, FT2 zeroes it out
         
         ch->Status  |= IS_Period;
         ch->EVibPos += ch->InstrSeg.VibRate;
@@ -1686,7 +1697,7 @@ static inline void DoEffects(PLAYER *p, StmTyp *ch)
         ch->PortaUpSpeed = tmpEff;
         
         ch->RealPeriod += ((int16_t)(tmpEff) << 2);
-        if (ch->RealPeriod >= 32000) ch->RealPeriod = 32000 - 1;
+        if (ch->RealPeriod > (32000 - 1)) ch->RealPeriod = 32000 - 1;
         
         ch->OutPeriod = ch->RealPeriod;
         ch->Status   |= IS_Period;
@@ -2264,6 +2275,8 @@ static int8_t LoadInstrSample(PLAYER *p, MEM *buf, uint16_t i)
     {
         for (j = 1; j <= p->Instr[i]->AntSamp; ++j)
         {
+            p->Instr[i]->Samp[j - 1].Pek = NULL;
+
             l = p->Instr[i]->Samp[j - 1].Len;
             if (l > 0)
             {
@@ -2533,10 +2546,10 @@ int8_t ft2play_LoadModule(void *_p, const int8_t *buffer, size_t size)
     p->Song.Len       = h.Len;
     p->Song.RepS      = h.RepS;
     p->Song.AntChn    = (uint8_t)(h.AntChn);
-    p->Song.DefSpeed  = h.DefSpeed ? h.DefSpeed : 125;
-    p->Song.Speed     = p->Song.DefSpeed;
-    p->Song.DefTempo  = h.DefTempo ? h.DefTempo : 6;
-    p->Song.Tempo     = p->Song.DefTempo;
+    p->Song.InitSpeed = h.DefSpeed ? h.DefSpeed : 125;
+    p->Song.Speed     = p->Song.InitSpeed;
+    p->Song.InitTempo = h.DefTempo ? h.DefTempo : 6;
+    p->Song.Tempo     = p->Song.InitTempo;
     p->Song.AntInstrs = h.AntInstrs;
     p->Song.AntPtn    = h.AntPtn;
     p->Song.Ver       = Ver;
@@ -3362,7 +3375,7 @@ static void mixSampleBlock(PLAYER *p, float *outputStream, uint32_t sampleBlockL
     {
         outL = p->masterBufferL[i] * (1.0f / 3.0f);
         outR = p->masterBufferR[i] * (1.0f / 3.0f);
-        
+
         *streamPointer++ = outL;
         *streamPointer++ = outR;
     }
@@ -3377,21 +3390,21 @@ void ft2play_RenderFloat(void *_p, float *buffer, int32_t count)
     if (p->isMixing)
     {
         outputStream = buffer;
-        
+
         while (count)
         {
             if (p->samplesLeft)
             {
                 samplesTodo = (count < p->samplesLeft) ? count : p->samplesLeft;
                 samplesTodo = (samplesTodo < p->soundBufferSize) ? samplesTodo : p->soundBufferSize;
-                
+
                 if (outputStream)
                 {
                     mixSampleBlock(p, outputStream, samplesTodo);
-                    
+
                     outputStream  += (samplesTodo << 1);
                 }
-                
+
                 p->samplesLeft   -= samplesTodo;
                 count -= samplesTodo;
             }
@@ -3399,7 +3412,7 @@ void ft2play_RenderFloat(void *_p, float *buffer, int32_t count)
             {
                 if (p->Playing)
                     MainPlayer(p);
-                
+
                 p->samplesLeft = p->samplesPerFrame;
             }
         }
