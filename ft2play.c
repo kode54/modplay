@@ -2689,7 +2689,11 @@ void voiceSetSource(PLAYER *p, uint8_t i, const int8_t *sampleData,
     }
     
     lanczos_resampler_clear(p->resampler[i]);
+#ifdef USE_VOL_RAMP
     lanczos_resampler_clear(p->resampler[i+254]);
+#else
+    lanczos_resampler_clear(p->resampler[i+127]);
+#endif
 }
 
 void voiceSetSamplePosition(PLAYER *p, uint8_t i, uint16_t value)
@@ -2699,7 +2703,11 @@ void voiceSetSamplePosition(PLAYER *p, uint8_t i, uint16_t value)
     p->voice[i].oversampleCount  = 0;
     
     lanczos_resampler_clear(p->resampler[i]);
+#ifdef USE_VOL_RAMP
     lanczos_resampler_clear(p->resampler[i+254]);
+#else
+    lanczos_resampler_clear(p->resampler[i+127]);
+#endif
 }
 
 void voiceSetVolume(PLAYER *p, uint8_t i, float vol, uint8_t pan, uint8_t sharp)
@@ -2933,7 +2941,11 @@ static inline void mix8bstereo(PLAYER *p, uint32_t ch, uint32_t samples)
     sampleData = p->voice[ch].sampleData;
     
     resampler[0] = p->resampler[ch];
+#ifdef USE_VOL_RAMP
     resampler[1] = p->resampler[ch+254];
+#else
+    resampler[1] = p->resampler[ch+127];
+#endif
     
     lanczos_resampler_set_rate(resampler[0], p->voice[ch].incRate * (float)samplingInterpolation);
     lanczos_resampler_set_rate(resampler[1], p->voice[ch].incRate * (float)samplingInterpolation);
@@ -3263,7 +3275,11 @@ static inline void mix16bstereo(PLAYER *p, uint32_t ch, uint32_t samples)
     sampleData = (const int16_t *)(p->voice[ch].sampleData);
     
     resampler[0] = p->resampler[ch];
+#ifdef USE_VOL_RAMP
     resampler[1] = p->resampler[ch+254];
+#else
+    resampler[1] = p->resampler[ch+127];
+#endif
     
     lanczos_resampler_set_rate(resampler[0], p->voice[ch].incRate * (float)samplingInterpolation);
     lanczos_resampler_set_rate(resampler[1], p->voice[ch].incRate * (float)samplingInterpolation);
