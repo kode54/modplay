@@ -363,6 +363,8 @@ typedef struct
     int8_t Playing;//      = 0;
     uint8_t numChannels;// = 127;
     
+    uint8_t muted[16];
+    
     uint32_t loopCount;
     uint8_t playedOrder[8192];
 } PLAYER;
@@ -3375,6 +3377,8 @@ static void mixSampleBlock(PLAYER *p, float *outputStream, uint32_t sampleBlockL
     
     for (i = 0; i < p->numChannels; ++i)
     {
+        if (p->muted[i / 8] & (1 << (i % 8)))
+            continue;
         mixChannel(p, i, sampleBlockLength);
         mixChannel(p, i + 127, sampleBlockLength);
     }
@@ -3754,6 +3758,18 @@ static void setSamplesPerFrame(PLAYER *p, uint32_t val)
     p->f_samplesPerFrame = 1.0f / ((float)(val) / 4.0f);
     p->f_samplesPerFrameInit = 1.0f / (p->f_outputFreq / 1000.0f); // 1ms
 #endif
+}
+
+void ft2play_Mute(void *_p, int8_t channel, int8_t mute)
+{
+    PLAYER * p = (PLAYER *)_p;
+    int8_t mask = 1 << (channel % 8);
+	if (channel > 127)
+		return;
+    if (mute)
+        p->muted[channel / 8] |= mask;
+    else
+		p->muted[channel / 8] &= ~mask;
 }
 
 uint32_t ft2play_GetLoopCount(void *_p)
