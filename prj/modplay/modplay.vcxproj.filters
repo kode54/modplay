@@ -17,12 +17,18 @@
     <ClCompile Include="..\..\st3play.c">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\ft2play.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\lanczos_resampler.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="..\..\st3play.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\ft2play.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

@@ -11,10 +11,12 @@
     </ProjectConfiguration>
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="..\..\ft2play.c" />
     <ClCompile Include="..\..\lanczos_resampler.c" />
     <ClCompile Include="..\..\st3play.c" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="..\..\ft2play.h" />
     <ClInclude Include="..\..\lanczos_resampler.h" />
     <ClInclude Include="..\..\st3play.h" />
   </ItemGroup>
