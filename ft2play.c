@@ -3534,7 +3534,7 @@ void * ft2play_Alloc(uint32_t _samplingFrequency, int8_t interpolation)
     // generate tables
     
     for (i = 0; i < 768; ++i)
-        p->LogTab[i] = (uint32_t)(floorf(((256.0f * 8363.0f) * expf((float)(i) / 768.0f * logf(2.0f))) + 0.5f));
+        p->LogTab[i] = (uint32_t)(floor(((256.0f * 8363.0f) * exp((float)(i) / 768.0f * logf(2.0f))) + 0.5f));
     
     for (i = 0; i < ((12 * 10 * 16) + 16); ++i)
         p->linearPeriods[i] = (((12 * 10 * 16) + 16) * 4) - (i << 2);
