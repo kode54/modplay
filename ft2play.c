@@ -996,8 +996,6 @@ CheckEffects:
                 pl->Song.Speed       = pl->Song.InitSpeed;
                 pl->Song.Tempo       = pl->Song.InitTempo;
                 pl->Song.GlobVol     = 64;
-
-                pl->loopCount++;
             }
             else
             {
