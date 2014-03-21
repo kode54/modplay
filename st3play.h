@@ -28,7 +28,7 @@ typedef struct
     uint16_t pattern;
     uint16_t row;
     uint8_t speed;
-    uint8_t tempo;
+    uint16_t tempo;
     uint8_t channels_playing;
 } st3_info;
     

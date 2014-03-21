@@ -10,7 +10,7 @@ extern "C" {
 void * ft2play_Alloc(uint32_t _samplingFrequency, int8_t interpolation);
 void ft2play_Free(void *);
 
-int8_t ft2play_LoadModule(void *, const int8_t *buffer, size_t size);
+int8_t ft2play_LoadModule(void *, const uint8_t *buffer, size_t size);
 
 void ft2play_PlaySong(void *, int32_t startOrder);
 

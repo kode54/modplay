@@ -314,9 +314,9 @@ typedef struct
 
 typedef struct
 {
-    int8_t *_ptr;
+    uint8_t *_ptr;
     uintptr_t _cnt;
-    int8_t *_base;
+    uint8_t *_base;
     uintptr_t _bufsiz;
     int32_t _eof;
 } MEM;
@@ -330,7 +330,7 @@ typedef struct
     int16_t *amigaPeriods;
     uint32_t *LogTab;
     int8_t   LinearFrqTab;
-    uint32_t soundBufferSize;
+    int32_t soundBufferSize;
     uint32_t outputFreq;
     
     TonTyp   *NilPatternLine;
@@ -371,7 +371,7 @@ enum { _soundBufferSize = 512 };
 
 // FUNCTION DECLARATIONS
 
-static MEM *mopen(const int8_t *src, uintptr_t length);
+static MEM *mopen(const uint8_t *src, uintptr_t length);
 static void mclose(MEM *buf);
 //static intptr_t mtell(MEM *buf);
 static size_t mread(void *buffer, size_t size, size_t count, MEM *buf);
@@ -2478,7 +2478,7 @@ static void ft2play_FreeSong(void *_p)
     p->ModuleLoaded = 0;
 }
 
-int8_t ft2play_LoadModule(void *_p, const int8_t *buffer, size_t size)
+int8_t ft2play_LoadModule(void *_p, const uint8_t *buffer, size_t size)
 {
     PLAYER *p = (PLAYER *)_p;
     MEM *buf;
@@ -2815,8 +2815,8 @@ static inline void mix8b(PLAYER *p, uint32_t ch, uint32_t samples)
         
         p->voice[ch].samplePosition  = samplePosition;
         p->voice[ch].loopDir         = loopDir;
-        p->voice[ch].interpolating   = interpolating;
-        p->voice[ch].oversampleCount = oversampleCount;
+        p->voice[ch].interpolating   = (int8_t)interpolating;
+        p->voice[ch].oversampleCount = (int8_t)oversampleCount;
         
         if ( !lanczos_resampler_ready(resampler) )
         {
@@ -2974,8 +2974,8 @@ static inline void mix8bstereo(PLAYER *p, uint32_t ch, uint32_t samples)
         
         p->voice[ch].samplePosition  = samplePosition;
         p->voice[ch].loopDir         = loopDir;
-        p->voice[ch].interpolating   = interpolating;
-        p->voice[ch].oversampleCount = oversampleCount;
+        p->voice[ch].interpolating   = (int8_t)interpolating;
+        p->voice[ch].oversampleCount = (int8_t)oversampleCount;
         
         if ( !lanczos_resampler_ready(resampler[0]) )
         {
@@ -3131,8 +3131,8 @@ static inline void mix16b(PLAYER *p, uint32_t ch, uint32_t samples)
         
         p->voice[ch].samplePosition  = samplePosition;
         p->voice[ch].loopDir         = loopDir;
-        p->voice[ch].interpolating   = interpolating;
-        p->voice[ch].oversampleCount = oversampleCount;
+        p->voice[ch].interpolating   = (int8_t)interpolating;
+        p->voice[ch].oversampleCount = (int8_t)oversampleCount;
         
         if ( !lanczos_resampler_ready(resampler) )
         {
@@ -3290,8 +3290,8 @@ static inline void mix16bstereo(PLAYER *p, uint32_t ch, uint32_t samples)
         
         p->voice[ch].samplePosition  = samplePosition;
         p->voice[ch].loopDir         = loopDir;
-        p->voice[ch].interpolating   = interpolating;
-        p->voice[ch].oversampleCount = oversampleCount;
+        p->voice[ch].interpolating   = (int8_t)interpolating;
+        p->voice[ch].oversampleCount = (int8_t)oversampleCount;
         
         if ( !lanczos_resampler_ready(resampler[0]) )
         {
@@ -3615,16 +3615,16 @@ void ft2play_PlaySong(void *_p, int32_t startOrder)
     setSamplesPerFrame(p, ((p->outputFreq * 5UL) / 2 / p->Song.Speed));
     p->isMixing = 1;
     
-    SetPos(p, startOrder, 0);
+    SetPos(p, (int16_t)startOrder, 0);
 
-    p->Song.startOrder = startOrder;
+    p->Song.startOrder = (int16_t)startOrder;
     
     p->loopCount = 0;
     memset(p->playedOrder, 0, sizeof(p->playedOrder));
     p->playedOrder[startOrder / 8] = 1 << (startOrder % 8);
 }
 
-static MEM *mopen(const int8_t *src, uintptr_t length)
+static MEM *mopen(const uint8_t *src, uintptr_t length)
 {
     MEM *b;
     
@@ -3633,8 +3633,8 @@ static MEM *mopen(const int8_t *src, uintptr_t length)
     b = (MEM *)(malloc(sizeof (MEM)));
     if (b == NULL) return (NULL);
     
-    b->_base   = (int8_t *)(src);
-    b->_ptr    = (int8_t *)(src);
+    b->_base   = (uint8_t *)(src);
+    b->_ptr    = (uint8_t *)(src);
     b->_cnt    = length;
     b->_bufsiz = length;
     b->_eof    = 0;
