@@ -2597,10 +2597,12 @@ void setSamplingInterpolation(PLAYER *p, int8_t value)
     p->samplingInterpolation = value;
 }
 
+#ifdef USE_VOL_RAMP
 void setRampStyle(PLAYER *p, int8_t value)
 {
     p->rampStyle = value;
 }
+#endif
 
 void setStereoMode(PLAYER *p, int8_t value)
 {
