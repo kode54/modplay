@@ -1,6 +1,6 @@
 CFLAGS = -c -fPIC
 
-OBJS = sinc_resampler.o st3play.o ft2play.o
+OBJS = resampler.o dbopl.o st3play.o ft2play.o
 
 
 OPTS = -O3
