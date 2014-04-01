@@ -3720,7 +3720,7 @@ static void st3play_AdlibMix(PLAYER *p, float *buffer, int32_t count)
         
         if (inbuffer_free)
         {
-            Chip_GenerateBlock2( p->fmChip, inbuffer_free, tempbuffer );
+            Chip_GenerateBlock_Mono( p->fmChip, inbuffer_free, tempbuffer );
             for (i = 0; i < inbuffer_free; ++i)
                 resampler_write_sample_fixed( p->fmResampler, (int)tempbuffer[i], 16);
         }
