@@ -1,5 +1,5 @@
 /*
-** ST3PLAY v0.45
+** ST3PLAY v0.47
 ** =============
 **
 ** C port of Scream Tracker 3's replayer, by 8bitbubsy (Olav Sørensen)
@@ -1698,12 +1698,8 @@ static void s_setpanwave(PLAYER *p, chn_t *ch) // NON-ST3
 
 static void s_setpanpos(PLAYER *p, chn_t *ch)
 {
-    if (p->stereomode)
-    {
-        ch->apanpos = (ch->info & 0x0F) << 4;
-
-        setpan(p, ch->channelnum);
-    }
+    ch->apanpos = (ch->info & 0x0F) << 4;
+    setpan(p, ch->channelnum);
 }
 
 static void s_sndcntrl(PLAYER *p, chn_t *ch) // NON-ST3
