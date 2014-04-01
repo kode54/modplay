@@ -11,11 +11,13 @@
     </ProjectConfiguration>
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="..\..\dbopl.c" />
     <ClCompile Include="..\..\ft2play.c" />
     <ClCompile Include="..\..\resampler.c" />
     <ClCompile Include="..\..\st3play.c" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="..\..\dbopl.h" />
     <ClInclude Include="..\..\ft2play.h" />
     <ClInclude Include="..\..\resampler.h" />
     <ClInclude Include="..\..\st3play.h" />
