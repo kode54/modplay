@@ -1585,7 +1585,7 @@ void Chip_GenerateBlock_Mono( void *_chip, Bitu total, Bit32s* output ) {
 void Chip_GenerateBlock_Stereo( void *_chip, Bitu total, Bit32s* output) {
     struct Chip *chip = (struct Chip *)_chip;
     if (!chip->opl3Active) {
-        Chip_GenerateBlock2( chip, todo, output );
+        Chip_GenerateBlock2( chip, total, output );
         while ( total-- ) {
             output[total * 2 + 1] = output[total * 2] = output[total];
         }
