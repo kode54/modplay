@@ -2718,7 +2718,7 @@ static void setSamplesPerFrame(PLAYER *p, uint32_t val)
 
 #ifdef USE_VOL_RAMP
     p->f_samplesPerFrame = 1.0f / ((float)(val) / 4.0f);
-    p->f_samplesPerFrameSharp = 1.0f / ((float)(val) / 48.0f);
+    p->f_samplesPerFrameSharp = 1.0f / (p->f_outputFreq / 1000.0f); // 1ms
 #endif
 }
 
@@ -3668,14 +3668,14 @@ void * ft2play_Alloc(uint32_t _samplingFrequency, int8_t interpolation, int8_t r
 #ifdef USE_VOL_RAMP
     for ( i = 0; i < 127 * 2 * 2; ++i )
 #else
-        for ( i = 0; i < 127 * 2; ++i )
+    for ( i = 0; i < 127 * 2; ++i )
 #endif
-        {
-            p->resampler[i] = resampler_create();
-            if ( !p->resampler[i] )
-                goto error;
-            resampler_set_quality(p->resampler[i], interpolation);
-        }
+    {
+        p->resampler[i] = resampler_create();
+        if ( !p->resampler[i] )
+            goto error;
+        resampler_set_quality(p->resampler[i], interpolation);
+    }
     
     // allocate memory for pointers
     
@@ -3828,7 +3828,7 @@ static void mclose(MEM *buf)
 static size_t mread(void *buffer, size_t size, size_t count, MEM *buf)
 {
     size_t wrcnt;
-    int32_t pcnt;
+    ssize_t pcnt;
 
     if (buf       == NULL) return (0);
     if (buf->_ptr == NULL) return (0);
@@ -3836,7 +3836,7 @@ static size_t mread(void *buffer, size_t size, size_t count, MEM *buf)
     wrcnt = size * count;
     if ((size == 0) || buf->_eof) return (0);
 
-    pcnt = ((uint32_t)(buf->_cnt) > wrcnt) ? wrcnt : buf->_cnt;
+    pcnt = (buf->_cnt > wrcnt) ? wrcnt : buf->_cnt;
     memcpy(buffer, buf->_ptr, pcnt);
 
     buf->_cnt -= pcnt;
@@ -3882,6 +3882,18 @@ static void mseek(MEM *buf, ssize_t offset, int32_t whence)
 
         buf->_cnt = (buf->_base + buf->_bufsiz) - buf->_ptr;
     }
+}
+
+void ft2play_Mute(void *_p, int8_t channel, int8_t mute)
+{
+    PLAYER * p = (PLAYER *)_p;
+    int8_t mask = 1 << (channel % 8);
+    if (channel > 127)
+        return;
+    if (mute)
+        p->muted[channel / 8] |= mask;
+    else
+        p->muted[channel / 8] &= ~mask;
 }
 
 uint32_t ft2play_GetLoopCount(void *_p)
