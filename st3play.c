@@ -3873,7 +3873,8 @@ void st3play_GetInfo(void *_p, st3_info *info)
             if (p->voice[i].mixing)
                 ++channels_playing;
         }
-		channels_playing += Chip_GetActiveChannels( p->fmChip );
+		if ( p->fmChip )
+			channels_playing += Chip_GetActiveChannels( p->fmChip );
     }
     info->channels_playing = (int8_t)channels_playing;
 }
