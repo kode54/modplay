@@ -1560,7 +1560,7 @@ void st3play_PlaySong(void *_p, int16_t startOrder)
         if (p->stereomode)
             p->chn[i].apanpos = pan;
         else
-            p->chn[i].apanpos = 7;
+            p->chn[i].apanpos = 128;
       
         voiceSetPanning(p, i, pan);
     }
