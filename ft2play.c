@@ -2057,7 +2057,7 @@ static void MainPlayer(PLAYER *p) // periodically called from mixer
         if (ch->Status & IS_NyTon)
         {
 #ifdef USE_VOL_RAMP
-            if (p->rampStyle > 0)
+			if (p->rampStyle > 0 && (ch->Eff != 3 && ch->Eff != 5 && (ch->VolKolVol & 0xF0) != 0xF0))
             {
                 p->voice[ch->Nr + 127] = p->voice[ch->Nr];
                 voiceSetVolume(p, ch->Nr, ch->FinalVol, 1);
@@ -2065,6 +2065,8 @@ static void MainPlayer(PLAYER *p) // periodically called from mixer
                 resampler_dup_inplace(p->resampler[ch->Nr + 127], p->resampler[ch->Nr]);
                 resampler_dup_inplace(p->resampler[ch->Nr + 127 + 254], p->resampler[ch->Nr + 254]);
             }
+			else
+				voiceSetVolume(p, ch->Nr, ch->FinalVol, 0);
 #endif
             s = ch->InstrOfs;
 

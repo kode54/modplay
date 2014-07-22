@@ -1038,7 +1038,7 @@ static inline void doamiga(PLAYER *p, uint8_t ch)
                         loop = 1;
 
 #ifdef USE_VOL_RAMP
-                    if (p->rampStyle > 0)
+                    if (p->rampStyle > 0 && p->chn[ch].cmd != 7)
                     {
                         p->voice[ch + 32] = p->voice[ch];
                         setvol(p, ch, 2);
@@ -1059,10 +1059,10 @@ static inline void doamiga(PLAYER *p, uint8_t ch)
                                 setpan(p, ch);
                             }
                         }
+	                    setvol(p, ch, 1);
                         volassigned = 1;
                     }
 #endif
-                    setvol(p, ch, 1);
                     
                     voiceSetSource(p, ch, (const int8_t *)(&p->mseg[insoffs]), inslen,
                         insrepend - insrepbeg, insrepend, loop,
