@@ -1059,11 +1059,13 @@ static inline void doamiga(PLAYER *p, uint8_t ch)
                                 setpan(p, ch);
                             }
                         }
-	                    setvol(p, ch, 1);
+                        setvol(p, ch, 1);
                         volassigned = 1;
                     }
+                    else
 #endif
-                    
+                    setvol(p, ch, 0);
+
                     voiceSetSource(p, ch, (const int8_t *)(&p->mseg[insoffs]), inslen,
                         insrepend - insrepbeg, insrepend, loop,
                         insdat[0x1F] & 4, insdat[0x1F] & 2, insdat[0x1E] == 4);
