@@ -2171,7 +2171,7 @@ static void MainPlayer(PLAYER *p) /* periodically called from mixer */
 #ifdef USE_VOL_RAMP
             if (rampStyle > 0 && voiceIsActive(p, ch->Nr))
             {
-                memcpy(p->voice + SPARE_OFFSET + ch->Nr, p->voice + ch->Nr, sizeof (VOICE));
+                memcpy(p->voice + SPARE_OFFSET + (int32_t)ch->Nr, p->voice + (int32_t)ch->Nr, sizeof (VOICE));
                 
                 p->voice[SPARE_OFFSET + ch->Nr].faderDest  = 0.0f;
                 p->voice[SPARE_OFFSET + ch->Nr].faderDelta =
