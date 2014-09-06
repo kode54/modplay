@@ -2171,11 +2171,15 @@ static void MainPlayer(PLAYER *p) /* periodically called from mixer */
 #ifdef USE_VOL_RAMP
             if (rampStyle > 0 && voiceIsActive(p, ch->Nr))
             {
-                memcpy(p->voice + SPARE_OFFSET + (int32_t)ch->Nr, p->voice + (int32_t)ch->Nr, sizeof (VOICE));
+                int32_t ChNr = ch->Nr;
+                memcpy(p->voice + SPARE_OFFSET + ChNr, p->voice + ChNr, sizeof (VOICE));
                 
-                p->voice[SPARE_OFFSET + ch->Nr].faderDest  = 0.0f;
-                p->voice[SPARE_OFFSET + ch->Nr].faderDelta =
-                (p->voice[SPARE_OFFSET + ch->Nr].faderDest - p->voice[SPARE_OFFSET + ch->Nr].fader) * p->f_samplesPerFrame010;
+                p->voice[SPARE_OFFSET + ChNr].faderDest  = 0.0f;
+                p->voice[SPARE_OFFSET + ChNr].faderDelta =
+                (p->voice[SPARE_OFFSET + ChNr].faderDest - p->voice[SPARE_OFFSET + ChNr].fader) * p->f_samplesPerFrame010;
+
+                resampler_dup_inplace(p->resampler[SPARE_OFFSET + ChNr], p->resampler[ChNr]);
+                resampler_dup_inplace(p->resampler[TOTAL_VOICES + SPARE_OFFSET + ChNr], p->resampler[TOTAL_VOICES + ChNr]);
             }
 #endif
             
