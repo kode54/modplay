@@ -394,18 +394,12 @@ typedef struct
     
     TonTyp   *NilPatternLine;
     TonTyp   *Patt[256];
-    StmTyp    Stm[127];
+    StmTyp    Stm[MAX_VOICES];
     SongTyp   Song;
     InstrTyp *Instr[255 + 1];
-#ifdef USE_VOL_RAMP
-    VOICE voice[127*2];
+    VOICE voice[TOTAL_VOICES];
     
-    void *resampler[127*2*2];
-#else
-    VOICE voice[127];
-    
-    void *resampler[127*2];
-#endif
+    void *resampler[TOTAL_VOICES*2];
     
     float *PanningTab;
     float f_outputFreq;
@@ -449,7 +443,7 @@ static void voiceSetSource(PLAYER *, uint8_t i, const int8_t *sampleData,
     int32_t sampleLoopEnd, int8_t loopEnabled,
     int8_t sixteenbit, int8_t stereo);
 static void voiceSetSamplePosition(PLAYER *, uint8_t i, uint16_t value);
-static void voiceSetVolume(PLAYER *, uint8_t i, float vol, uint8_t pan);
+static void voiceSetVolume(PLAYER *, uint8_t i, float vol, uint8_t pan, uint8_t note_on);
 static void voiceSetSamplingFrequency(PLAYER *, uint8_t i, uint32_t samplingFrequency);
 static void ft2play_FreeSong(PLAYER *);
 
@@ -2064,6 +2058,10 @@ static void MainPlayer(PLAYER *p) /* periodically called from mixer */
 
     uint8_t i;
     int8_t tickzero;
+    
+#ifdef USE_VOL_RAMP
+    int32_t rampStyle = p->rampStyle;
+#endif
 
     if (p->Playing)
     {
@@ -2082,9 +2080,9 @@ static void MainPlayer(PLAYER *p) /* periodically called from mixer */
                 for (i = 0; i < p->Song.AntChn; ++i)
                 {
                     if (p->Patt[p->Song.PattNr] != NULL)
-                        GetNewNote(p, &p->Stm[i], &p->Patt[p->Song.PattNr][(p->Song.PattPos * 127) + i]);
+                        GetNewNote(p, &p->Stm[i], &p->Patt[p->Song.PattNr][(p->Song.PattPos * MAX_VOICES) + i]);
                     else
-                        GetNewNote(p, &p->Stm[i], &p->NilPatternLine[(p->Song.PattPos * 127) + i]);
+                        GetNewNote(p, &p->Stm[i], &p->NilPatternLine[(p->Song.PattPos * MAX_VOICES) + i]);
 
                     FixaEnvelopeVibrato(p, &p->Stm[i]);
                 }
@@ -2171,7 +2169,7 @@ static void MainPlayer(PLAYER *p) /* periodically called from mixer */
             s = ch->InstrOfs;
 
 #ifdef USE_VOL_RAMP
-            if (p->rampStyle > 0 && voiceIsActive(p, ch->Nr))
+            if (rampStyle > 0 && voiceIsActive(p, ch->Nr))
             {
                 memcpy(p->voice + SPARE_OFFSET + ch->Nr, p->voice + ch->Nr, sizeof (VOICE));
                 
@@ -2185,7 +2183,7 @@ static void MainPlayer(PLAYER *p) /* periodically called from mixer */
             voiceSetSamplePosition(p, ch->Nr, ch->SmpStartPos);
             
 #ifdef USE_VOL_RAMP
-            if (p->rampStyle > 0)
+            if (rampStyle > 0)
             {
                 p->voice[ch->Nr].fader      = 0.0f;
                 p->voice[ch->Nr].faderDest  = 1.0f;
@@ -2195,7 +2193,7 @@ static void MainPlayer(PLAYER *p) /* periodically called from mixer */
         }
 
         if (ch->Status & IS_Vol)
-            voiceSetVolume(p, ch->Nr, ch->FinalVol, ch->FinalPan);
+            voiceSetVolume(p, ch->Nr, ch->FinalVol, ch->FinalPan, ch->Status & IS_NyTon);
         
         if (ch->Status & IS_Period)
             voiceSetSamplingFrequency(p, ch->Nr, GetFrequenceValue(p, ch->FinalPeriod));
@@ -2229,7 +2227,7 @@ static void StopVoices(PLAYER *p)
         ch->FinalPan = 128;
         ch->VibDepth = 0;
 
-        voiceSetVolume(p, a, ch->FinalVol, ch->FinalPan);
+        voiceSetVolume(p, a, ch->FinalVol, ch->FinalPan, 1);
     }
 }
 
@@ -2899,9 +2897,6 @@ static inline void voiceSetSource(PLAYER *p, uint8_t i, const int8_t *sampleData
     v->loopingForward   = 1;
     v->stereo           = stereo;
     v->interpolating    = 1;
-    
-    resampler_clear(p->resampler[i]);
-    resampler_clear(p->resampler[i+TOTAL_VOICES]);
 }
 
 static inline void voiceSetSamplePosition(PLAYER *p, uint8_t i, uint16_t value)
@@ -2917,18 +2912,15 @@ static inline void voiceSetSamplePosition(PLAYER *p, uint8_t i, uint16_t value)
     }
     
     v->interpolating = 1;
-
-    resampler_clear(p->resampler[i]);
-    resampler_clear(p->resampler[i+TOTAL_VOICES]);
 }
 
-static inline void voiceSetVolume(PLAYER *p, uint8_t i, float vol, uint8_t pan)
+static inline void voiceSetVolume(PLAYER *p, uint8_t i, float vol, uint8_t pan, uint8_t note_on)
 {
     VOICE *v;
     v = &p->voice[i];
     
 #ifdef USE_VOL_RAMP
-    if (p->rampStyle > 1)
+    if (!note_on && p->rampStyle > 1)
     {
         v->targetVolL = vol * p->PanningTab[256 - pan];
         v->targetVolR = vol * p->PanningTab[pan];
@@ -3053,6 +3045,7 @@ static inline void mix8b(PLAYER *p, uint32_t ch, uint32_t samples)
         
         if ( !resampler_get_sample_count(resampler) )
         {
+            resampler_clear(resampler);
             v->sampleData = NULL;
             break;
         }
@@ -3072,6 +3065,7 @@ static inline void mix8b(PLAYER *p, uint32_t ch, uint32_t samples)
             else if ((v->faderDelta < 0.0f) && (v->fader < v->faderDest))
             {
                 v->fader = v->faderDest;
+                resampler_clear(resampler);
                 v->sampleData = NULL;
             }
         
@@ -3088,26 +3082,22 @@ static inline void mix8b(PLAYER *p, uint32_t ch, uint32_t samples)
             v->volumeL += v->volDeltaL;
             v->volumeR += v->volDeltaR;
             
-            if (v->volDeltaL >= 0.0f)
+            if ((v->volDeltaL > 0.0f) && (v->volumeL > v->targetVolL))
             {
-                if (v->volumeL > v->targetVolL)
-                    v->volumeL = v->targetVolL;
+                v->volumeL = v->targetVolL;
             }
-            else
+            else if ((v->volDeltaL < 0.0f) && (v->volumeL < v->targetVolL))
             {
-                if (v->volumeL < v->targetVolL)
-                    v->volumeL = v->targetVolL;
+                v->volumeL = v->targetVolL;
             }
             
-            if (v->volDeltaR >= 0.0f)
+            if ((v->volDeltaR > 0.0f) && (v->volumeR > v->targetVolR))
             {
-                if (v->volumeR > v->targetVolR)
-                    v->volumeR = v->targetVolR;
+                v->volumeR = v->targetVolR;
             }
-            else
+            else if ((v->volDeltaR < 0.0f) && (v->volumeR < v->targetVolR))
             {
-                if (v->volumeR < v->targetVolR)
-                    v->volumeR = v->targetVolR;
+                v->volumeR = v->targetVolR;
             }
         }
 #endif
@@ -3219,6 +3209,7 @@ static inline void mix8bstereo(PLAYER *p, uint32_t ch, uint32_t samples)
         
         if ( !resampler_get_sample_count(resampler[0]) )
         {
+            resampler_clear(resampler);
             v->sampleData = NULL;
             break;
         }
@@ -3240,6 +3231,7 @@ static inline void mix8bstereo(PLAYER *p, uint32_t ch, uint32_t samples)
             else if ((v->faderDelta < 0.0f) && (v->fader < v->faderDest))
             {
                 v->fader = v->faderDest;
+                resampler_clear(resampler);
                 v->sampleData = NULL;
             }
         
@@ -3257,26 +3249,22 @@ static inline void mix8bstereo(PLAYER *p, uint32_t ch, uint32_t samples)
             v->volumeL += v->volDeltaL;
             v->volumeR += v->volDeltaR;
             
-            if (v->volDeltaL >= 0.0f)
+            if ((v->volDeltaL > 0.0f) && (v->volumeL > v->targetVolL))
             {
-                if (v->volumeL > v->targetVolL)
-                    v->volumeL = v->targetVolL;
+                v->volumeL = v->targetVolL;
             }
-            else
+            else if ((v->volDeltaL < 0.0f) && (v->volumeL < v->targetVolL))
             {
-                if (v->volumeL < v->targetVolL)
-                    v->volumeL = v->targetVolL;
+                v->volumeL = v->targetVolL;
             }
             
-            if (v->volDeltaR >= 0.0f)
+            if ((v->volDeltaR > 0.0f) && (v->volumeR > v->targetVolR))
             {
-                if (v->volumeR > v->targetVolR)
-                    v->volumeR = v->targetVolR;
+                v->volumeR = v->targetVolR;
             }
-            else
+            else if ((v->volDeltaR < 0.0f) && (v->volumeR < v->targetVolR))
             {
-                if (v->volumeR < v->targetVolR)
-                    v->volumeR = v->targetVolR;
+                v->volumeR = v->targetVolR;
             }
         }
 #endif
@@ -3386,6 +3374,7 @@ static inline void mix16b(PLAYER *p, uint32_t ch, uint32_t samples)
         
         if ( !resampler_get_sample_count(resampler) )
         {
+            resampler_clear(resampler);
             v->sampleData = NULL;
             break;
         }
@@ -3405,6 +3394,7 @@ static inline void mix16b(PLAYER *p, uint32_t ch, uint32_t samples)
             else if ((v->faderDelta < 0.0f) && (v->fader < v->faderDest))
             {
                 v->fader = v->faderDest;
+                resampler_clear(resampler);
                 v->sampleData = NULL;
             }
         
@@ -3421,26 +3411,22 @@ static inline void mix16b(PLAYER *p, uint32_t ch, uint32_t samples)
             v->volumeL += v->volDeltaL;
             v->volumeR += v->volDeltaR;
             
-            if (v->volDeltaL >= 0.0f)
+            if ((v->volDeltaL > 0.0f) && (v->volumeL > v->targetVolL))
             {
-                if (v->volumeL > v->targetVolL)
-                    v->volumeL = v->targetVolL;
+                v->volumeL = v->targetVolL;
             }
-            else
+            else if ((v->volDeltaL < 0.0f) && (v->volumeL < v->targetVolL))
             {
-                if (v->volumeL < v->targetVolL)
-                    v->volumeL = v->targetVolL;
+                v->volumeL = v->targetVolL;
             }
             
-            if (v->volDeltaR >= 0.0f)
+            if ((v->volDeltaR > 0.0f) && (v->volumeR > v->targetVolR))
             {
-                if (v->volumeR > v->targetVolR)
-                    v->volumeR = v->targetVolR;
+                v->volumeR = v->targetVolR;
             }
-            else
+            else if ((v->volDeltaR < 0.0f) && (v->volumeR < v->targetVolR))
             {
-                if (v->volumeR < v->targetVolR)
-                    v->volumeR = v->targetVolR;
+                v->volumeR = v->targetVolR;
             }
         }
 #endif
@@ -3552,6 +3538,7 @@ static inline void mix16bstereo(PLAYER *p, uint32_t ch, uint32_t samples)
         
         if ( !resampler_get_sample_count(resampler[0]) )
         {
+            resampler_clear(resampler);
             v->sampleData = NULL;
             break;
         }
@@ -3573,6 +3560,7 @@ static inline void mix16bstereo(PLAYER *p, uint32_t ch, uint32_t samples)
             else if ((v->faderDelta < 0.0f) && (v->fader < v->faderDest))
             {
                 v->fader = v->faderDest;
+                resampler_clear(resampler);
                 v->sampleData = NULL;
             }
         
@@ -3590,26 +3578,22 @@ static inline void mix16bstereo(PLAYER *p, uint32_t ch, uint32_t samples)
             v->volumeL += v->volDeltaL;
             v->volumeR += v->volDeltaR;
             
-            if (v->volDeltaL >= 0.0f)
+            if ((v->volDeltaL > 0.0f) && (v->volumeL > v->targetVolL))
             {
-                if (v->volumeL > v->targetVolL)
-                    v->volumeL = v->targetVolL;
+                v->volumeL = v->targetVolL;
             }
-            else
+            else if ((v->volDeltaL < 0.0f) && (v->volumeL < v->targetVolL))
             {
-                if (v->volumeL < v->targetVolL)
-                    v->volumeL = v->targetVolL;
+                v->volumeL = v->targetVolL;
             }
             
-            if (v->volDeltaR >= 0.0f)
+            if ((v->volDeltaR > 0.0f) && (v->volumeR > v->targetVolR))
             {
-                if (v->volumeR > v->targetVolR)
-                    v->volumeR = v->targetVolR;
+                v->volumeR = v->targetVolR;
             }
-            else
+            else if ((v->volDeltaR < 0.0f) && (v->volumeR < v->targetVolR))
             {
-                if (v->volumeR < v->targetVolR)
-                    v->volumeR = v->targetVolR;
+                v->volumeR = v->targetVolR;
             }
         }
 #endif

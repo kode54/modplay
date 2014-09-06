@@ -2968,7 +2968,7 @@ static inline void mix8b(PLAYER *p, uint8_t ch, uint32_t samples)
         p->voice[ch].samplePosition  = samplePosition;
         p->voice[ch].interpolating   = (int8_t)interpolating;
 
-        if ( !resampler_ready(resampler) )
+        if ( !resampler_get_sample_count(resampler) )
         {
             resampler_clear(resampler);
             p->voice[ch].mixing = 0;
@@ -3112,7 +3112,7 @@ static inline void mix8bstereo(PLAYER *p, uint8_t ch, uint32_t samples)
         p->voice[ch].samplePosition  = samplePosition;
         p->voice[ch].interpolating   = (int8_t)interpolating;
         
-        if ( !resampler_ready(resampler[0]) )
+        if ( !resampler_get_sample_count(resampler[0]) )
         {
             resampler_clear(resampler[0]);
             resampler_clear(resampler[1]);
@@ -3253,7 +3253,7 @@ static inline void mix16b(PLAYER *p, uint8_t ch, uint32_t samples)
         p->voice[ch].samplePosition  = samplePosition;
         p->voice[ch].interpolating   = (int8_t)interpolating;
         
-        if ( !resampler_ready(resampler) )
+        if ( !resampler_get_sample_count(resampler) )
         {
             resampler_clear(resampler);
             p->voice[ch].mixing = 0;
@@ -3397,7 +3397,7 @@ static inline void mix16bstereo(PLAYER *p, uint8_t ch, uint32_t samples)
         p->voice[ch].samplePosition  = samplePosition;
         p->voice[ch].interpolating   = (int8_t)interpolating;
         
-        if ( !resampler_ready(resampler[0]) )
+        if ( !resampler_get_sample_count(resampler[0]) )
         {
             resampler_clear(resampler[0]);
             resampler_clear(resampler[1]);
@@ -3570,7 +3570,7 @@ static inline void mixadpcm(PLAYER *p, uint8_t ch, uint32_t samples)
         p->voice[ch].interpolating   = (int8_t)interpolating;
         p->voice[ch].lastDelta       = lastDelta;
         
-        if ( !resampler_ready(resampler) )
+        if ( !resampler_get_sample_count(resampler) )
         {
             resampler_clear(resampler);
             p->voice[ch].mixing = 0;
