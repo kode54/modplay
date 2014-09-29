@@ -11,12 +11,14 @@
     </ProjectConfiguration>
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="..\..\barray.c" />
     <ClCompile Include="..\..\dbopl.c" />
     <ClCompile Include="..\..\ft2play.c" />
     <ClCompile Include="..\..\resampler.c" />
     <ClCompile Include="..\..\st3play.c" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="..\..\barray.h" />
     <ClInclude Include="..\..\dbopl.h" />
     <ClInclude Include="..\..\ft2play.h" />
     <ClInclude Include="..\..\resampler.h" />
