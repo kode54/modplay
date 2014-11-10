@@ -6,6 +6,13 @@
 #include <xmmintrin.h>
 #define RESAMPLER_SSE
 #endif
+#ifdef __APPLE__
+#include <TargetConditionals.h>
+#ifdef TARGET_OS_IPHONE
+#include <arm_neon.h>
+#define RESAMPLER_NEON
+#endif
+#endif
 
 #ifdef _MSC_VER
 #define ALIGNED     _declspec(align(16))
@@ -422,6 +429,7 @@ static int resampler_run_zoh(resampler * r, float ** out_, float * out_end)
     return used;
 }
 
+#ifndef RESAMPLER_NEON
 static int resampler_run_blep(resampler * r, float ** out_, float * out_end)
 {
     int in_size = r->write_filled;
@@ -480,6 +488,7 @@ static int resampler_run_blep(resampler * r, float ** out_, float * out_end)
     
     return used;
 }
+#endif
 
 #ifdef RESAMPLER_SSE
 static int resampler_run_blep_sse(resampler * r, float ** out_, float * out_end)
@@ -554,6 +563,78 @@ static int resampler_run_blep_sse(resampler * r, float ** out_, float * out_end)
 }
 #endif
 
+#ifdef RESAMPLER_NEON
+static int resampler_run_blep(resampler * r, float ** out_, float * out_end)
+{
+    int in_size = r->write_filled;
+    float const* in_ = r->buffer_in + resampler_buffer_size + r->write_pos - r->write_filled;
+    int used = 0;
+    in_size -= 1;
+    if ( in_size > 0 )
+    {
+        float* out = *out_;
+        float const* in = in_;
+        float const* const in_end = in + in_size;
+        float last_amp = r->last_amp;
+        int inv_phase = r->inv_phase;
+        int inv_phase_inc = r->inv_phase_inc;
+        
+        const int step = RESAMPLER_RESOLUTION;
+        
+        do
+        {
+            // accumulate in extended precision
+            float kernel_sum = 0.0;
+            float32x4_t kernel[SINC_WIDTH / 2];
+            float32x4_t temp1, temp2;
+            float32x4_t samplex;
+            float sample;
+            float *kernelf = (float*)(&kernel);
+            int phase_reduced = inv_phase >> RESAMPLER_SHIFT_EXTRA;
+            int i = SINC_WIDTH;
+            
+            if ( out + SINC_WIDTH * 2 > out_end )
+                break;
+            
+            for (; i >= -SINC_WIDTH + 1; --i)
+            {
+                int pos = i * step;
+                int abs_pos = abs(phase_reduced - pos);
+                kernel_sum += kernelf[i + SINC_WIDTH - 1] = sinc_lut[abs_pos] * window_lut[abs_pos];
+            }
+            sample = *in++ - last_amp;
+            last_amp += sample;
+            sample /= kernel_sum;
+            samplex = vdupq_n_f32(sample);
+            for (i = 0; i < SINC_WIDTH / 2; ++i)
+            {
+                temp1 = vld1q_f32( (const float32_t *)( kernel + i ) );
+                temp2 = vld1q_f32( (const float32_t *) out + i * 4 );
+                temp1 = vmlaq_f32( temp2, temp1, samplex );
+                vst1q_f32( (float32_t *) out + i * 4, temp1 );
+            }
+            
+            inv_phase += inv_phase_inc;
+            
+            out += inv_phase >> (RESAMPLER_SHIFT + RESAMPLER_SHIFT_EXTRA);
+            
+            inv_phase &= RESAMPLER_RESOLUTION_EXTRA - 1;
+        }
+        while ( in < in_end );
+        
+        r->inv_phase = inv_phase;
+        r->last_amp = last_amp;
+        *out_ = out;
+        
+        used = (int)(in - in_);
+        
+        r->write_filled -= used;
+    }
+    
+    return used;
+}
+#endif
+
 static int resampler_run_linear(resampler * r, float ** out_, float * out_end)
 {
     int in_size = r->write_filled;
@@ -597,6 +678,7 @@ static int resampler_run_linear(resampler * r, float ** out_, float * out_end)
     return used;
 }
 
+#ifndef RESAMPLER_NEON
 static int resampler_run_cubic(resampler * r, float ** out_, float * out_end)
 {
     int in_size = r->write_filled;
@@ -644,6 +726,7 @@ static int resampler_run_cubic(resampler * r, float ** out_, float * out_end)
     
     return used;
 }
+#endif
 
 #ifdef RESAMPLER_SSE
 static int resampler_run_cubic_sse(resampler * r, float ** out_, float * out_end)
@@ -700,6 +783,56 @@ static int resampler_run_cubic_sse(resampler * r, float ** out_, float * out_end
 }
 #endif
 
+#ifdef RESAMPLER_NEON
+static int resampler_run_cubic(resampler * r, float ** out_, float * out_end)
+{
+    int in_size = r->write_filled;
+    float const* in_ = r->buffer_in + resampler_buffer_size + r->write_pos - r->write_filled;
+    int used = 0;
+    in_size -= 4;
+    if ( in_size > 0 )
+    {
+        float* out = *out_;
+        float const* in = in_;
+        float const* const in_end = in + in_size;
+        int phase = r->phase;
+        int phase_inc = r->phase_inc;
+        
+        do
+        {
+            float32x4_t temp1, temp2;
+            float32x2_t half;
+            
+            if ( out >= out_end )
+                break;
+            
+            temp1 = vld1q_f32( (const float32_t *)( in ) );
+            temp2 = vld1q_f32( (const float32_t *)( cubic_lut + (phase >> RESAMPLER_SHIFT_EXTRA) * 4 ) );
+            temp1 = vmulq_f32( temp1, temp2 );
+            half = vadd_f32(vget_high_f32(temp1), vget_low_f32(temp1));
+            *out++ = vget_lane_f32(vpadd_f32(half, half), 0);
+            
+            phase += phase_inc;
+            
+            in += phase >> (RESAMPLER_SHIFT + RESAMPLER_SHIFT_EXTRA);
+            
+            phase &= RESAMPLER_RESOLUTION_EXTRA - 1;
+        }
+        while ( in < in_end );
+        
+        r->phase = phase;
+        *out_ = out;
+        
+        used = (int)(in - in_);
+        
+        r->write_filled -= used;
+    }
+    
+    return used;
+}
+#endif
+
+#ifndef RESAMPLER_NEON
 static int resampler_run_sinc(resampler * r, float ** out_, float * out_end)
 {
     int in_size = r->write_filled;
@@ -756,6 +889,7 @@ static int resampler_run_sinc(resampler * r, float ** out_, float * out_end)
 
     return used;
 }
+#endif
 
 #ifdef RESAMPLER_SSE
 static int resampler_run_sinc_sse(resampler * r, float ** out_, float * out_end)
@@ -834,6 +968,77 @@ static int resampler_run_sinc_sse(resampler * r, float ** out_, float * out_end)
 }
 #endif
 
+#ifdef RESAMPLER_NEON
+static int resampler_run_sinc(resampler * r, float ** out_, float * out_end)
+{
+    int in_size = r->write_filled;
+    float const* in_ = r->buffer_in + resampler_buffer_size + r->write_pos - r->write_filled;
+    int used = 0;
+    in_size -= SINC_WIDTH * 2;
+    if ( in_size > 0 )
+    {
+        float* out = *out_;
+        float const* in = in_;
+        float const* const in_end = in + in_size;
+        int phase = r->phase;
+        int phase_inc = r->phase_inc;
+        
+        int step = phase_inc > RESAMPLER_RESOLUTION_EXTRA ? RESAMPLER_RESOLUTION * RESAMPLER_RESOLUTION_EXTRA / phase_inc : RESAMPLER_RESOLUTION;
+        int window_step = RESAMPLER_RESOLUTION;
+        
+        do
+        {
+            // accumulate in extended precision
+            float kernel_sum = 0.0;
+            float32x4_t kernel[SINC_WIDTH / 2];
+            float32x4_t temp1, temp2;
+            float32x4_t samplex = {0};
+            float32x2_t half;
+            float *kernelf = (float*)(&kernel);
+            int i = SINC_WIDTH;
+            int phase_reduced = phase >> RESAMPLER_SHIFT_EXTRA;
+            int phase_adj = phase_reduced * step / RESAMPLER_RESOLUTION;
+            
+            if ( out >= out_end )
+                break;
+            
+            for (; i >= -SINC_WIDTH + 1; --i)
+            {
+                int pos = i * step;
+                int window_pos = i * window_step;
+                kernel_sum += kernelf[i + SINC_WIDTH - 1] = sinc_lut[abs(phase_adj - pos)] * window_lut[abs(phase_reduced - window_pos)];
+            }
+            for (i = 0; i < SINC_WIDTH / 2; ++i)
+            {
+                temp1 = vld1q_f32( (const float32_t *)( in + i * 4 ) );
+                temp2 = vld1q_f32( (const float32_t *)( kernel + i ) );
+                samplex = vmlaq_f32( samplex, temp1, temp2 );
+            }
+            kernel_sum = 1.0 / kernel_sum;
+            samplex = vmulq_f32(samplex, vmovq_n_f32(kernel_sum));
+            half = vadd_f32(vget_high_f32(samplex), vget_low_f32(samplex));
+            *out++ = vget_lane_f32(vpadd_f32(half, half), 0);
+            
+            phase += phase_inc;
+            
+            in += phase >> (RESAMPLER_SHIFT + RESAMPLER_SHIFT_EXTRA);
+            
+            phase &= RESAMPLER_RESOLUTION_EXTRA - 1;
+        }
+        while ( in < in_end );
+        
+        r->phase = phase;
+        *out_ = out;
+        
+        used = (int)(in - in_);
+        
+        r->write_filled -= used;
+    }
+    
+    return used;
+}
+#endif
+
 static void resampler_fill(resampler * r)
 {
     int min_filled = resampler_min_filled(r);
@@ -861,9 +1066,11 @@ static void resampler_fill(resampler * r)
             if ( write_extra > SINC_WIDTH * 2 - 1 )
                 write_extra = SINC_WIDTH * 2 - 1;
             memcpy( r->buffer_out + resampler_buffer_size, r->buffer_out, write_extra * sizeof(r->buffer_out[0]) );
+#ifdef RESAMPLER_SSE
             if ( resampler_has_sse )
                 used = resampler_run_blep_sse( r, &out, out + write_size + write_extra );
             else
+#endif
                 used = resampler_run_blep( r, &out, out + write_size + write_extra );
             memcpy( r->buffer_out, r->buffer_out + resampler_buffer_size, write_extra * sizeof(r->buffer_out[0]) );
             if (!used)
