@@ -8,7 +8,7 @@
 #endif
 #ifdef __APPLE__
 #include <TargetConditionals.h>
-#ifdef TARGET_OS_IPHONE
+#if TARGET_CPU_ARM
 #include <arm_neon.h>
 #define RESAMPLER_NEON
 #endif
