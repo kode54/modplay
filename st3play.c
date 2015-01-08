@@ -3833,6 +3833,7 @@ void st3play_RenderFixed32(void *_p, int32_t *buffer, int32_t count, int8_t dept
     float sample;
     assert(sizeof(int32_t) == sizeof(float));
     st3play_RenderFloat(_p, fbuffer, count);
+    if (buffer)
     for (i = 0; i < count * 2; ++i)
     {
         sample = fbuffer[i] * scale;
@@ -3848,6 +3849,9 @@ void st3play_RenderFixed16(void *_p, int16_t *buffer, int32_t count, int8_t dept
     float scale = (float)(1 << (depth - 1));
     float sample;
     float fbuffer[1024];
+    if (!buffer)
+        st3play_RenderFloat(_p, 0, count);
+    else
     while (count)
     {
         SamplesTodo = (count < 512) ? count : 512;
