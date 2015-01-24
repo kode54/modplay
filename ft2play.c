@@ -2210,6 +2210,8 @@ static void MainPlayer(PLAYER *p) /* periodically called from mixer */
 
                 resampler_dup_inplace(p->resampler[SPARE_OFFSET + ChNr], p->resampler[ChNr]);
                 resampler_dup_inplace(p->resampler[TOTAL_VOICES + SPARE_OFFSET + ChNr], p->resampler[TOTAL_VOICES + ChNr]);
+                resampler_clear(p->resampler[ChNr]);
+                resampler_clear(p->resampler[TOTAL_VOICES + ChNr]);
             }
 #endif
             
