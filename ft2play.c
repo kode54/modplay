@@ -3647,6 +3647,8 @@ static inline void mix16bstereo(PLAYER *p, uint32_t ch, uint32_t samples)
 
 static inline void mixChannel(PLAYER *p, uint32_t i, uint32_t sampleBlockLength)
 {
+    if (!p->voice[i].incRate)
+        return;
     if (p->voice[i].stereo)
     {
         if (p->voice[i].sixteenBit)
