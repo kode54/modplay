@@ -1,6 +1,10 @@
 /*
-** ST3PLAY v0.70 - 18th of March 2015
-** ==================================
+** ST3PLAY v0.71 - 28th of May 2015 - http://16-bits.org
+** =====================================================
+** This is the foobar2000 version, with added code by kode54
+**
+** Changelog from v0.70:
+** - Any pan commands except Lxy/Yxy/XA4 should disable channel surround
 **
 ** Changelog from v0.60:
 ** - Added S2x (non-ST3, set middle-C finetune)
@@ -1083,6 +1087,9 @@ static inline void doamiga(PLAYER *p, uint8_t ch)
                             // NON-ST3
                             if ((p->chn[ch].vol >= 128) && (p->chn[ch].vol <= 192))
                             {
+                                p->chn[ch].surround = 0;
+                                voiceSetSurround(p, ch, 0);
+                                
                                 p->chn[ch].apanpos = (p->chn[ch].vol - 128) << 2;
                                 setpan(p, ch);
                             }
@@ -1229,6 +1236,9 @@ static inline void doamiga(PLAYER *p, uint8_t ch)
         // NON-ST3, but let's handle it no matter what tracker
         if ((p->chn[ch].vol >= 128) && (p->chn[ch].vol <= 192))
         {
+            p->chn[ch].surround = 0;
+            voiceSetSurround(p, ch, 0);
+            
             p->chn[ch].apanpos = (p->chn[ch].vol - 128) << 2;
             setpan(p, ch);
         }
@@ -1810,6 +1820,9 @@ static void s_tickdelay(PLAYER *p, chn_t *ch) // NON-ST3
 
 static void s_setpanpos(PLAYER *p, chn_t *ch)
 {
+    ch->surround = 0;
+    voiceSetSurround(p, ch->channelnum, 0);
+    
     ch->apanpos = (ch->info & 0x0F) << 4;
     setpan(p, ch->channelnum);
 }
@@ -2728,6 +2741,9 @@ static void s_setpan(PLAYER *p, chn_t *ch) // NON-ST3
 
     if (ch->info <= 0x80)
     {
+        ch->surround = 0;
+        voiceSetSurround(p, ch->channelnum, 0);
+        
         ch->apanpos = (int16_t)(ch->info) << 1;
         setpan(p, ch->channelnum);
     }
@@ -2938,6 +2954,12 @@ void voiceSetVolume(PLAYER *p, uint8_t voiceNumber, float volume, uint8_t note_o
 
 void voiceSetSurround(PLAYER *p, uint8_t voiceNumber, int8_t surround)
 {
+    if (surround)
+    {
+        p->chn[voiceNumber].apanpos = 128;
+        setpan(p, voiceNumber);
+    }
+    
 #ifdef USE_VOL_RAMP
     if (p->rampStyle > 1)
     {
