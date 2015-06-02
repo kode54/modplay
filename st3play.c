@@ -1490,14 +1490,14 @@ static inline int8_t get_adpcm_sample(const int8_t *sampleDictionary, const uint
 static inline void decode_adpcm(const uint8_t * sampleData, int8_t * decodedSampleData, int32_t sampleLength)
 {
     int i;
-    int8_t lastDelta = 0, nextDelta;
+    int8_t lastDelta = 0;
     
     const int8_t * sampleDictionary = sampleData;
     sampleData += 16;
     
     for (i = 0; i < sampleLength; ++i)
     {
-        int8_t sample = get_adpcm_sample(sampleDictionary, sampleData, i, &nextDelta);
+        int8_t sample = get_adpcm_sample(sampleDictionary, sampleData, i, &lastDelta);
         
         *decodedSampleData++ = sample;
     }
