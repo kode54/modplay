@@ -613,7 +613,7 @@ static inline void set_le16(void *_p, uint16_t v)
 {
     uint8_t *p;
     
-    p = (uint8_t *)(_p)
+    p = (uint8_t *)(_p);
     p[0] = (uint8_t)(v);
     p[1] = v >> 8;
 }
@@ -1508,7 +1508,7 @@ static inline void decode_adpcm(const uint8_t * sampleData, int8_t * decodedSamp
     int8_t lastDelta, sample;
     const int8_t * sampleDictionary;
     
-    sampleDictionary = sampleData;
+    sampleDictionary = (const int8_t *)(sampleData);
     sampleData += 16;
     
     lastDelta = 0;
@@ -3017,7 +3017,7 @@ void voiceSetSurround(PLAYER *p, uint8_t voiceNumber, int8_t surround)
 void voiceSetPanning(PLAYER *p, uint8_t voiceNumber, uint16_t pan)
 {
     float pf;
-    float rampRate
+    float rampRate;
     
     pf = (float)(pan) / 256.0f;
 
