@@ -1253,9 +1253,9 @@ static inline void donewnote(PLAYER *p, uint8_t ch, int8_t notedelayflag)
     }
     else
     {
-        if (p->chn[ch].channelnum > p->lastachannelused)
+        if (ch > p->lastachannelused)
         {
-            p->lastachannelused = p->chn[ch].channelnum + 1;
+            p->lastachannelused = ch + 1;
 
             // hackish fix, fixes call_me_an_angel.s3m crash
             if (p->lastachannelused > 31) p->lastachannelused = 31;
