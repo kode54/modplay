@@ -3159,7 +3159,7 @@ static inline void mix8b(PLAYER *p, uint8_t ch, uint32_t samples)
             }
         }
 
-        while (interplating < 0 && (resampler_get_free_count(resampler) || !resampler_get_sample_count(resampler)))
+        while (interpolating < 0 && (resampler_get_free_count(resampler) || !resampler_get_sample_count(resampler)))
         {
             resampler_write_sample_fixed(resampler, 0, 8);
             ++interpolating;
@@ -3331,7 +3331,7 @@ static inline void mix8bstereo(PLAYER *p, uint8_t ch, uint32_t samples)
             }
         }
 
-        while (interplating < 0 && (resampler_get_free_count(resampler[0]) ||
+        while (interpolating < 0 && (resampler_get_free_count(resampler[0]) ||
                (!resampler_get_sample_count(resampler[0]) &&
                !resampler_get_sample_count(resampler[1]))))
         {
