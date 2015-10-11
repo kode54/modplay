@@ -2167,7 +2167,8 @@ static void MainPlayer(PLAYER *p) /* periodically called from mixer */
 
                 if (oldSongPos != p->Song.SongPos)
                 {
-                    for (size_t i = 0; i < playedRowsCount; ++i)
+					size_t i;
+                    for (i = 0; i < playedRowsCount; ++i)
                         bit_array_set(p->playedRows, oldSongPos * 1024 + p->playedRowsPatLoop[i]);
                     memset(p->playedRowsPatLoop, 0xFF, playedRowsCount * 2);
                     playedRowsCount = 0;
