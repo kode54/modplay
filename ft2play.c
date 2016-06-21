@@ -2229,7 +2229,7 @@ static void MainPlayer(PLAYER *p) /* periodically called from mixer */
 #endif
         }
 
-        if (ch->Status & IS_Vol)
+        if (ch->Status & (IS_Vol|IS_Pan))
             voiceSetVolume(p, ch->Nr, ch->FinalVol, ch->FinalPan, ch->Status & IS_NyTon);
 
         if (ch->Status & IS_Period)
