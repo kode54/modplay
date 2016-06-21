@@ -2989,6 +2989,9 @@ static inline void mix8b(PLAYER *p, uint32_t ch, uint32_t samples)
     const int8_t *sampleData;
 
     VOICE *v;
+    
+    int samples_ready;
+    int to_fill;
 
     float sample;
     float sampleL;
@@ -3027,76 +3030,83 @@ static inline void mix8b(PLAYER *p, uint32_t ch, uint32_t samples)
 
     resampler = p->resampler[ch];
 
-    resampler_set_rate(resampler, v->incRate);
+    resampler_set_ratio(resampler, v->incRate);
 
     for (j = 0; (j < samples) && (v->sampleData != NULL); ++j)
     {
         samplePosition = v->samplePosition;
-
-        while (interpolating > 0 && (resampler_get_free_count(resampler) ||
-               !resampler_get_sample_count(resampler)))
+        samples_ready = resampler_ready(resampler);
+        
+        while (!samples_ready)
         {
-            resampler_write_sample_fixed(resampler, sampleData[samplePosition], 8);
-
-            if (loopingForward)
-                ++samplePosition;
-            else
-                --samplePosition;
-
-            if (loopEnabled)
+            to_fill = resampler_get_free_count(resampler);
+            
+            while (to_fill--)
             {
-                if (loopBidi)
+                if (!interpolating)
                 {
-                    if (loopingForward)
+                    resampler_write(resampler, 0.0);
+                    continue;
+                }
+                
+                resampler_write_fixed(resampler, sampleData[samplePosition], 8);
+
+                if (loopingForward)
+                    ++samplePosition;
+                else
+                    --samplePosition;
+
+                if (loopEnabled)
+                {
+                    if (loopBidi)
                     {
-                        if (samplePosition == sampleLoopEnd)
+                        if (loopingForward)
                         {
-                            samplePosition = sampleLoopEnd - 1;
-                            loopingForward = 0;
+                            if (samplePosition == sampleLoopEnd)
+                            {
+                                samplePosition = sampleLoopEnd - 1;
+                                loopingForward = 0;
+                            }
+                        }
+                        else
+                        {
+                            if (samplePosition < sampleLoopBegin)
+                            {
+                                samplePosition = sampleLoopBegin;
+                                loopingForward = 1;
+                            }
                         }
                     }
                     else
                     {
-                        if (samplePosition < sampleLoopBegin)
-                        {
+                        if (samplePosition == sampleLoopEnd)
                             samplePosition = sampleLoopBegin;
-                            loopingForward = 1;
-                        }
                     }
                 }
-                else
+                else if ((samplePosition < 0) || (samplePosition >= sampleLength))
                 {
-                    if (samplePosition == sampleLoopEnd)
-                        samplePosition = sampleLoopBegin;
+                    interpolating = 0;
+                    continue;
                 }
             }
-            else if ((samplePosition < 0) || (samplePosition >= sampleLength))
-            {
-                interpolating = -resampler_get_padding_size();
-                break;
-            }
-        }
-
-        while (interpolating < 0 && (resampler_get_free_count(resampler) ||
-               !resampler_get_sample_count(resampler)))
-        {
-            resampler_write_sample_fixed(resampler, 0, 8);
-            ++interpolating;
+            
+            while (resampler_process(resampler));
+            
+            samples_ready = resampler_ready(resampler);
         }
 
         v->samplePosition = samplePosition;
         v->loopingForward = loopingForward;
         v->interpolating  = (int8_t)interpolating;
 
-        if ( !resampler_get_sample_count(resampler) )
+        if ( !samples_ready )
         {
             resampler_clear(resampler);
             v->sampleData = NULL;
             break;
         }
 
-        sample = resampler_get_sample_float(resampler);
-        resampler_remove_sample(resampler, 1);
+        sample = resampler_read(resampler);
 
 #ifdef USE_VOL_RAMP
         if (rampStyle > 0)
@@ -3159,6 +3169,9 @@ static inline void mix8bstereo(PLAYER *p, uint32_t ch, uint32_t samples)
     const int8_t *sampleData;
 
     VOICE *v;
+    
+    int samples_ready;
+    int to_fill;
 
     float sampleL;
     float sampleR;
@@ -3197,85 +3210,90 @@ static inline void mix8bstereo(PLAYER *p, uint32_t ch, uint32_t samples)
     resampler[0] = p->resampler[ch];
     resampler[1] = p->resampler[ch+TOTAL_VOICES];
 
-    resampler_set_rate(resampler[0], v->incRate);
-    resampler_set_rate(resampler[1], v->incRate);
+    resampler_set_ratio(resampler[0], v->incRate);
+    resampler_set_ratio(resampler[1], v->incRate);
 
     for (j = 0; (j < samples) && (v->sampleData != NULL); ++j)
     {
         samplePosition = v->samplePosition;
-
-        while (interpolating > 0 && (resampler_get_free_count(resampler[0]) ||
-               (!resampler_get_sample_count(resampler[0]) &&
-               !resampler_get_sample_count(resampler[1]))))
+        samples_ready = resampler_ready(resampler[0]);
+        
+        while (!samples_ready)
         {
-            resampler_write_sample_fixed(resampler[0], sampleData[samplePosition], 8);
-            resampler_write_sample_fixed(resampler[1], sampleData[sampleLength + samplePosition], 8);
-
-            if (loopingForward)
-                ++samplePosition;
-            else
-                --samplePosition;
-
-            if (loopEnabled)
+            to_fill = resampler_get_free_count(resampler[0]);
+            
+            while (to_fill--)
             {
-                if (loopBidi)
+                if (!interpolating)
                 {
-                    if (loopingForward)
+                    resampler_write(resampler[0], 0.0);
+                    resampler_write(resampler[1], 0.0);
+                    continue;
+                }
+                
+                resampler_write_fixed(resampler[0], sampleData[samplePosition], 8);
+                resampler_write_fixed(resampler[1], sampleData[sampleLength + samplePosition], 8);
+                
+                if (loopingForward)
+                    ++samplePosition;
+                else
+                    --samplePosition;
+                
+                if (loopEnabled)
+                {
+                    if (loopBidi)
                     {
-                        if (samplePosition == sampleLoopEnd)
+                        if (loopingForward)
                         {
-                            samplePosition = sampleLoopEnd - 1;
-                            loopingForward = 0;
+                            if (samplePosition == sampleLoopEnd)
+                            {
+                                samplePosition = sampleLoopEnd - 1;
+                                loopingForward = 0;
+                            }
+                        }
+                        else
+                        {
+                            if (samplePosition < sampleLoopBegin)
+                            {
+                                samplePosition = sampleLoopBegin;
+                                loopingForward = 1;
+                            }
                         }
                     }
                     else
                     {
-                        if (samplePosition < sampleLoopBegin)
-                        {
+                        if (samplePosition == sampleLoopEnd)
                             samplePosition = sampleLoopBegin;
-                            loopingForward = 1;
-                        }
                     }
                 }
-                else
+                else if ((samplePosition < 0) || (samplePosition >= sampleLength))
                 {
-                    if (samplePosition == sampleLoopEnd)
-                        samplePosition = sampleLoopBegin;
+                    interpolating = 0;
+                    continue;
                 }
             }
-            else if ((samplePosition < 0) || (samplePosition >= sampleLength))
-            {
-                interpolating = -resampler_get_padding_size();
-                break;
-            }
+            
+            while (resampler_process(resampler[0]));
+            while (resampler_process(resampler[1]));
+            
+            samples_ready = resampler_ready(resampler[0]);
         }
-
-        while (interpolating < 0 && (resampler_get_free_count(resampler[0]) ||
-               (!resampler_get_sample_count(resampler[0]) &&
-               !resampler_get_sample_count(resampler[1]))))
-        {
-            resampler_write_sample_fixed(resampler[0], 0, 8);
-            resampler_write_sample_fixed(resampler[1], 0, 8);
-            ++interpolating;
-        }
-
+        
         v->samplePosition = samplePosition;
         v->loopingForward = loopingForward;
         v->interpolating  = (int8_t)interpolating;
-
-        if ( !resampler_get_sample_count(resampler[0]) )
+        
+        if ( !samples_ready )
         {
             resampler_clear(resampler[0]);
             resampler_clear(resampler[1]);
             v->sampleData = NULL;
             break;
         }
-
-        sampleL = resampler_get_sample_float(resampler[0]);
-        sampleR = resampler_get_sample_float(resampler[1]);
-        resampler_remove_sample(resampler[0], 1);
-        resampler_remove_sample(resampler[1], 1);
-
+        
+        sampleL = resampler_read(resampler[0]);
+        sampleR = resampler_read(resampler[1]);
+        
 #ifdef USE_VOL_RAMP
         if (rampStyle > 0)
         {
@@ -3339,6 +3357,9 @@ static inline void mix16b(PLAYER *p, uint32_t ch, uint32_t samples)
     const int16_t *sampleData;
 
     VOICE *v;
+    
+    int samples_ready;
+    int to_fill;
 
     float sample;
     float sampleL;
@@ -3377,77 +3398,84 @@ static inline void mix16b(PLAYER *p, uint32_t ch, uint32_t samples)
 
     resampler = p->resampler[ch];
 
-    resampler_set_rate(resampler, v->incRate);
+    resampler_set_ratio(resampler, v->incRate);
 
     for (j = 0; (j < samples) && (v->sampleData != NULL); ++j)
     {
         samplePosition = v->samplePosition;
-
-        while (interpolating > 0 && (resampler_get_free_count(resampler) ||
-              !resampler_get_sample_count(resampler)))
+        samples_ready = resampler_ready(resampler);
+        
+        while (!samples_ready)
         {
-            resampler_write_sample_fixed(resampler, sampleData[samplePosition], 16);
-
-            if (loopingForward)
-                ++samplePosition;
-            else
-                --samplePosition;
-
-            if (loopEnabled)
+            to_fill = resampler_get_free_count(resampler);
+            
+            while (to_fill--)
             {
-                if (loopBidi)
+                if (!interpolating)
                 {
-                    if (loopingForward)
+                    resampler_write(resampler, 0.0);
+                    continue;
+                }
+                
+                resampler_write_fixed(resampler, sampleData[samplePosition], 16);
+                
+                if (loopingForward)
+                    ++samplePosition;
+                else
+                    --samplePosition;
+                
+                if (loopEnabled)
+                {
+                    if (loopBidi)
                     {
-                        if (samplePosition == sampleLoopEnd)
+                        if (loopingForward)
                         {
-                            samplePosition = sampleLoopEnd - 1;
-                            loopingForward = 0;
+                            if (samplePosition == sampleLoopEnd)
+                            {
+                                samplePosition = sampleLoopEnd - 1;
+                                loopingForward = 0;
+                            }
+                        }
+                        else
+                        {
+                            if (samplePosition < sampleLoopBegin)
+                            {
+                                samplePosition = sampleLoopBegin;
+                                loopingForward = 1;
+                            }
                         }
                     }
                     else
                     {
-                        if (samplePosition < sampleLoopBegin)
-                        {
+                        if (samplePosition == sampleLoopEnd)
                             samplePosition = sampleLoopBegin;
-                            loopingForward = 1;
-                        }
                     }
                 }
-                else
+                else if ((samplePosition < 0) || (samplePosition >= sampleLength))
                 {
-                    if (samplePosition == sampleLoopEnd)
-                        samplePosition = sampleLoopBegin;
+                    interpolating = 0;
+                    continue;
                 }
             }
-            else if ((samplePosition < 0) || (samplePosition >= sampleLength))
-            {
-                interpolating = -resampler_get_padding_size();
-                break;
-            }
+            
+            while (resampler_process(resampler));
+            
+            samples_ready = resampler_ready(resampler);
         }
-
-        while (interpolating < 0 && (resampler_get_free_count(resampler) ||
-               !resampler_get_sample_count(resampler)))
-        {
-            resampler_write_sample_fixed(resampler, 0, 16);
-            ++interpolating;
-        }
-
+        
         v->samplePosition = samplePosition;
         v->loopingForward = loopingForward;
         v->interpolating  = (int8_t)interpolating;
-
-        if ( !resampler_get_sample_count(resampler) )
+        
+        if ( !samples_ready )
         {
             resampler_clear(resampler);
             v->sampleData = NULL;
             break;
         }
-
-        sample = resampler_get_sample_float(resampler);
-        resampler_remove_sample(resampler, 1);
-
+        
+        sample = resampler_read(resampler);
+        
 #ifdef USE_VOL_RAMP
         if (rampStyle > 0)
         {
@@ -3509,6 +3537,9 @@ static inline void mix16bstereo(PLAYER *p, uint32_t ch, uint32_t samples)
     const int16_t *sampleData;
 
     VOICE *v;
+    
+    int samples_ready;
+    int to_fill;
 
     float sampleL;
     float sampleR;
@@ -3547,84 +3578,89 @@ static inline void mix16bstereo(PLAYER *p, uint32_t ch, uint32_t samples)
     resampler[0] = p->resampler[ch];
     resampler[1] = p->resampler[ch+TOTAL_VOICES];
 
-    resampler_set_rate(resampler[0], v->incRate);
-    resampler_set_rate(resampler[1], v->incRate);
+    resampler_set_ratio(resampler[0], v->incRate);
+    resampler_set_ratio(resampler[1], v->incRate);
 
     for (j = 0; (j < samples) && (v->sampleData != NULL); ++j)
     {
         samplePosition = v->samplePosition;
-
-        while (interpolating > 0 && (resampler_get_free_count(resampler[0]) ||
-                                 (!resampler_get_sample_count(resampler[0]) &&
-                                  !resampler_get_sample_count(resampler[1]))))
+        samples_ready = resampler_ready(resampler[0]);
+        
+        while (!samples_ready)
         {
-            resampler_write_sample_fixed(resampler[0], sampleData[samplePosition], 16);
-            resampler_write_sample_fixed(resampler[1], sampleData[sampleLength + samplePosition], 16);
-
-            if (loopingForward)
-                ++samplePosition;
-            else
-                --samplePosition;
-
-            if (loopEnabled)
+            to_fill = resampler_get_free_count(resampler[0]);
+            
+            while (to_fill--)
             {
-                if (loopBidi)
+                if (!interpolating)
                 {
-                    if (loopingForward)
+                    resampler_write(resampler[0], 0.0);
+                    resampler_write(resampler[1], 0.0);
+                    continue;
+                }
+                
+                resampler_write_fixed(resampler[0], sampleData[samplePosition], 16);
+                resampler_write_fixed(resampler[1], sampleData[sampleLength + samplePosition], 16);
+                
+                if (loopingForward)
+                    ++samplePosition;
+                else
+                    --samplePosition;
+                
+                if (loopEnabled)
+                {
+                    if (loopBidi)
                     {
-                        if (samplePosition == sampleLoopEnd)
+                        if (loopingForward)
                         {
-                            samplePosition = sampleLoopEnd - 1;
-                            loopingForward = 0;
+                            if (samplePosition == sampleLoopEnd)
+                            {
+                                samplePosition = sampleLoopEnd - 1;
+                                loopingForward = 0;
+                            }
+                        }
+                        else
+                        {
+                            if (samplePosition < sampleLoopBegin)
+                            {
+                                samplePosition = sampleLoopBegin;
+                                loopingForward = 1;
+                            }
                         }
                     }
                     else
                     {
-                        if (samplePosition < sampleLoopBegin)
-                        {
+                        if (samplePosition == sampleLoopEnd)
                             samplePosition = sampleLoopBegin;
-                            loopingForward = 1;
-                        }
                     }
                 }
-                else
+                else if ((samplePosition < 0) || (samplePosition >= sampleLength))
                 {
-                    if (samplePosition == sampleLoopEnd)
-                        samplePosition = sampleLoopBegin;
+                    interpolating = 0;
+                    continue;
                 }
             }
-            else if ((samplePosition < 0) || (samplePosition >= sampleLength))
-            {
-                interpolating = -resampler_get_padding_size();
-                break;
-            }
+            
+            while (resampler_process(resampler[0]));
+            while (resampler_process(resampler[1]));
+            
+            samples_ready = resampler_ready(resampler[0]);
         }
-
-        while (interpolating < 0 && (resampler_get_free_count(resampler[0]) ||
-               (!resampler_get_sample_count(resampler[0]) &&
-               !resampler_get_sample_count(resampler[1]))))
-        {
-            resampler_write_sample_fixed(resampler[0], 0, 16);
-            resampler_write_sample_fixed(resampler[1], 0, 16);
-            ++interpolating;
-        }
-
+        
         v->samplePosition = samplePosition;
         v->loopingForward = loopingForward;
         v->interpolating  = (int8_t)interpolating;
-
-        if ( !resampler_get_sample_count(resampler[0]) )
+        
+        if ( !samples_ready )
         {
             resampler_clear(resampler[0]);
             resampler_clear(resampler[1]);
             v->sampleData = NULL;
             break;
         }
-
-        sampleL = resampler_get_sample_float(resampler[0]);
-        sampleR = resampler_get_sample_float(resampler[1]);
-        resampler_remove_sample(resampler[0], 1);
-        resampler_remove_sample(resampler[1], 1);
+        
+        sampleL = resampler_read(resampler[0]);
+        sampleR = resampler_read(resampler[1]);
 
 #ifdef USE_VOL_RAMP
         if (rampStyle > 0)
@@ -3854,13 +3890,11 @@ void * ft2play_Alloc(uint32_t _samplingFrequency, int8_t interpolation, int8_t r
     p->rampStyle = ramp_style;
 #endif
 
-    resampler_init();
     for ( i = 0; i < TOTAL_VOICES * 2; ++i )
     {
         p->resampler[i] = resampler_create();
         if ( !p->resampler[i] )
             goto error;
-        resampler_set_quality(p->resampler[i], interpolation);
     }
 
     /* allocate memory for pointers */

@@ -1,6 +1,8 @@
 CFLAGS = -c -fPIC
 
-OBJS = resampler.o dbopl.o st3play.o ft2play.o
+KISSFFT_OBJS = kissfft/kiss_fft.o kissfft/kiss_fftr.o
+
+OBJS = resampler.o simple_convolver.o dbopl.o st3play.o ft2play.o $(KISSFFT_OBJS)
 
 
 OPTS = -O3
