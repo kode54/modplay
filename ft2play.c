@@ -1342,6 +1342,7 @@ static void FixaEnvelopeVibrato(PLAYER *p, StmTyp *ch)
     int8_t envDidInterpolate;
     int16_t autoVibVal;
     int16_t autoVibAmp;
+    int16_t tmpPeriod;
 
     // *** FADEOUT ***
     if (!ch->EnvSustainActive)
@@ -1532,8 +1533,6 @@ static void FixaEnvelopeVibrato(PLAYER *p, StmTyp *ch)
     /* *** AUTO VIBRATO *** */
     if (ch->InstrSeg.VibDepth)
     {
-        uint16_t tmpPeriod;
-
         if (ch->EVibSweep)
         {
             autoVibAmp = ch->EVibSweep;
@@ -1553,8 +1552,6 @@ static void FixaEnvelopeVibrato(PLAYER *p, StmTyp *ch)
         {
             autoVibAmp = ch->EVibAmp;
         }
-
-        autoVibAmp += ch->VibDepth;
 
         ch->EVibPos += ch->InstrSeg.VibRate;
 
@@ -2190,7 +2187,7 @@ static void MainPlayer(PLAYER *p) /* periodically called from mixer */
 
                 if (oldSongPos != p->Song.SongPos)
                 {
-					size_t i;
+                    size_t i;
                     for (i = 0; i < playedRowsCount; ++i)
                         bit_array_set(p->playedRows, oldSongPos * 1024 + p->playedRowsPatLoop[i]);
                     memset(p->playedRowsPatLoop, 0xFF, playedRowsCount * 2);
@@ -4025,7 +4022,7 @@ void ft2play_PlaySong(void *_p, int32_t startOrder)
     p->loopCount = 0;
 
     if (p->playedRows) bit_array_destroy(p->playedRows);
-	p->playedRows = bit_array_create(1024 * (p->Song.Len ? p->Song.Len : 1));
+    p->playedRows = bit_array_create(1024 * (p->Song.Len ? p->Song.Len : 1));
     bit_array_set(p->playedRows, startOrder * 1024);
 
     p->playedRowsPatLoop[0] = 0;
