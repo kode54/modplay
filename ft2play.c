@@ -1532,6 +1532,8 @@ static void FixaEnvelopeVibrato(PLAYER *p, StmTyp *ch)
     /* *** AUTO VIBRATO *** */
     if (ch->InstrSeg.VibDepth)
     {
+        uint16_t tmpPeriod;
+
         if (ch->EVibSweep)
         {
             autoVibAmp = ch->EVibSweep;
@@ -1552,7 +1554,7 @@ static void FixaEnvelopeVibrato(PLAYER *p, StmTyp *ch)
             autoVibAmp = ch->EVibAmp;
         }
 
-        autoVibAmp += ch->MIDIVibDepth;
+        autoVibAmp += ch->VibDepth;
 
         ch->EVibPos += ch->InstrSeg.VibRate;
 
@@ -1570,7 +1572,7 @@ static void FixaEnvelopeVibrato(PLAYER *p, StmTyp *ch)
 
         /* sine */
         else
-            autoVibVal = VibSineTab[ch->EVibPos];
+            autoVibVal = p->VibSineTab[ch->EVibPos];
 
         autoVibVal <<= 2;
 
