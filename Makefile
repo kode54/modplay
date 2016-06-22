@@ -1,6 +1,6 @@
 CFLAGS = -c -fPIC
 
-OBJS = resampler.o dbopl.o st3play.o ft2play.o
+OBJS = fir_resample.o resampler.o dbopl.o st3play.o ft2play.o
 
 
 OPTS = -O3
@@ -12,6 +12,9 @@ libmodplay.a : $(OBJS)
 
 .c.o:
 	$(CC) $(CFLAGS) $(OPTS) -o $@ $*.c
+
+.cpp.o:
+	$(CXX) $(CFLAGS) $(OPTS) -o $@ $*.cpp
 
 clean:
 	rm -f $(OBJS) libmodplay.a > /dev/null
