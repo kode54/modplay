@@ -1,7 +1,10 @@
 /*
-** FT2PLAY v0.68a - 21st of June 2016
-** ==================================
+** FT2PLAY v0.77- 26th of June 2016
+** ================================
 **
+** Changelog from v0.68 (later changelogs missing):
+** - Bug fix for Lxx (Set Envelope Position)
+** 
 ** Changelog from v0.67:
 ** - Bug in GetNewNote() (cmd 390 would fail - "unreal2 scirreal mix.xm" fix)
 **
@@ -1017,7 +1020,7 @@ static void CheckEffects(PLAYER *p, StmTyp *ch)
             if (ch->InstrSeg.EnvVPAnt > 1)
             {
                 envPos++;
-                for (i = 0; i < ch->InstrSeg.EnvVPAnt; ++i)
+                for (i = 0; i < ch->InstrSeg.EnvVPAnt - 1; ++i)
                 {
                     if (newEnvPos < ch->InstrSeg.EnvVP[envPos][0])
                     {
@@ -1078,7 +1081,7 @@ static void CheckEffects(PLAYER *p, StmTyp *ch)
             if (ch->InstrSeg.EnvPPAnt > 1)
             {
                 envPos++;
-                for (i = 0; i < ch->InstrSeg.EnvPPAnt; ++i)
+                for (i = 0; i < ch->InstrSeg.EnvPPAnt - 1; ++i)
                 {
                     if (newEnvPos < ch->InstrSeg.EnvPP[envPos][0])
                     {
