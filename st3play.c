@@ -1,7 +1,11 @@
 /*
-** ST3PLAY v0.75a - 5th of October 2016 - http://16-bits.org
+** ST3PLAY v0.78 - 9th of February 2017 - http://16-bits.org
 ** =========================================================
 ** This is the foobar2000 version, with added code by kode54
+**
+** Changelog from v0.77:
+** - PROPER initial pan loading this time, ignore earlier changelog entry.
+**   Also pan*17 instead of pan*16, to use the full pan range.
 **
 ** Changelog from v0.71:
 ** - Initial pans should be 128 since we simulate GUS mode.
@@ -1683,11 +1687,14 @@ void st3play_PlaySong(void *_p, int16_t startOrder)
     for (i = 0; i < 32; ++i)
     {
         pan = 128;
+        if (p->mseg[0x40 + i] != 0xFF)
+            pan = (p->mseg[0x40 + i] & 8) ? (0x0C * 17) : (0x03 * 17);
+
         if (p->mseg[0x35] == 0xFC) // non-default pannings follow
         {
             dat = p->mseg[(p->patternadd + (get_le16(&p->mseg[0x24]) * 2)) + i];
             if (dat & 0x20)
-                pan = (dat & 0x0F) * 16;
+                pan = (dat & 0x0F) * 17;
         }
 
         p->chn[i].apanpos = p->stereomode ? pan : 128;
@@ -1853,7 +1860,7 @@ static void s_setpanpos(PLAYER *p, chn_t *ch)
     ch->surround = 0;
     voiceSetSurround(p, ch->channelnum, 0);
 
-    ch->apanpos = (ch->info & 0x0F) * 16;
+    ch->apanpos = (ch->info & 0x0F) * 17;
     setpan(p, ch->channelnum);
 }
 
